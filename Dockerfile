@@ -1,4 +1,4 @@
-FROM dunglas/dunglas/frankenphp
+FROM dunglas/frankenphp
 
 SHELL [ "/bin/bash", "-l", "-euxo", "pipefail", "-c" ]
 
@@ -19,6 +19,16 @@ RUN apt update \
     && fnm -V \
     && fnm install --lts \
     && echo 'eval "$(fnm env --use-on-cd --shell bash)"' >> /etc/bash.bashrc \
+    && echo 'export XDG_CONFIG_HOME=$HOME/.config' >> /etc/bash.bashrc \
+    && echo 'export XDG_DATA_HOME=$HOME/.data' >> /etc/bash.bashrc \
+    && echo 'export XDG_CACHE_HOME=$HOME/.cache' >> /etc/bash.bashrc \
+    && echo 'export XDG_STATE_HOME=$HOME/.state' >> /etc/bash.bashrc \
+    && echo 'export PNPM_STORE_PATH=${XDG_DATA_HOME}/pnpm-store' >> /etc/bash.bashrc \
+    && echo 'mkdir -p $XDG_CONFIG_HOME' >> /etc/bash.bashrc \
+    && echo 'alias pint="./vendor/bin/pint"' >> /etc/bash.bashrc \
+    && echo 'alias pa="php artisan"' >> /etc/bash.bashrc \
+    && echo 'alias stan="./vendor/bin/phpstan"' >> /etc/bash.bashrc \
+    && echo 'alias pest="./vendor/bin/pest"' >> /etc/bash.bashrc \
     && source /etc/bash.bashrc \
     && fnm alias default lts \
     && fnm use default \
