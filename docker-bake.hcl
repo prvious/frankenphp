@@ -1,5 +1,5 @@
 variable "IMAGE_NAME" {
-    default = "munezaclovis/frankenphp"
+    default = "ghcr.io/munezaclovis/frankenphp"
 }
 
 variable "VERSION" {
