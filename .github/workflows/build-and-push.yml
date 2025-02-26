@@ -118,14 +118,6 @@ jobs:
               with:
                   platforms: ${{ matrix.platform }}
 
-            # - name: Cache Docker layers
-            #   uses: actions/cache@v4
-            #   with:
-            #       path: ${{ runner.temp }}/.buildx-cache
-            #       key: ${{ runner.os }}-buildx-${{ github.sha }}
-            #       restore-keys: |
-            #           ${{ runner.os }}-buildx-
-
             - name: Login to GitHub Container Registry
               if: fromJson(needs.prepare.outputs.push)
               uses: docker/login-action@v3
@@ -172,10 +164,6 @@ jobs:
                   path: /tmp/metadata/runner/*
                   if-no-files-found: error
                   retention-days: 1
-            - name: Move cache
-              run: |
-                  rm -rf ${{ runner.temp }}/.buildx-cache
-                  mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
     push:
         runs-on: ubuntu-24.04
         needs:
