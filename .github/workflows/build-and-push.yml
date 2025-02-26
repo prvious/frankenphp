@@ -13,7 +13,6 @@ on:
         - cron: '0 4 * * *'
 permissions:
     contents: read
-    packages: write
 env:
     IMAGE_NAME: 'munezaclovis/frankenphp'
 
@@ -86,6 +85,9 @@ jobs:
         needs:
             - prepare
         if: ${{ !fromJson(needs.prepare.outputs.skip) }}
+        permissions:
+            contents: read
+            packages: write
         strategy:
             fail-fast: false
             matrix:
@@ -180,6 +182,9 @@ jobs:
             - prepare
             - build
         if: fromJson(needs.prepare.outputs.push)
+        permissions:
+            contents: read
+            packages: write
         strategy:
             fail-fast: false
             matrix:

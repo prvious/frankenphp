@@ -1,4 +1,5 @@
-FROM dunglas/frankenphp AS runner
+ARG TAG
+FROM dunglas/frankenphp:${TAG} AS runner
 
 SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
 

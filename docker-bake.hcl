@@ -112,5 +112,6 @@ target "default" {
     }
     args = {
         FRANKENPHP_VERSION = VERSION
+        TAG = "php${clean_tag(php-version)}"
     }
 }
