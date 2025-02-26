@@ -14,7 +14,7 @@ on:
 permissions:
     contents: read
 env:
-    IMAGE_NAME: 'munezaclovis/frankenphp'
+    IMAGE_NAME: 'ghcr.io/munezaclovis/frankenphp'
 
 jobs:
     prepare:
