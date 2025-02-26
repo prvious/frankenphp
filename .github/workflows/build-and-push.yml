@@ -138,7 +138,7 @@ jobs:
               id: build
               uses: docker/bake-action@v6
               with:
-                  load: ${{ !fromJson(needs.prepare.outputs.push) }}
+                  push: ${{ !fromJson(needs.prepare.outputs.push) }}
                   targets: runner-${{ matrix.variant }}
                   # Remove tags to prevent "can't push tagged ref [...] by digest" error
                   set: |
