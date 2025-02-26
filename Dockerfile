@@ -1,4 +1,4 @@
-FROM dunglas/frankenphp
+FROM dunglas/frankenphp as runner
 
 SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
 
