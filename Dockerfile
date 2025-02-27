@@ -29,7 +29,6 @@ RUN apt update \
     && npm install -g npm pnpm \
     && install-php-extensions @composer bcmath gd imap pcntl zip intl exif ftp xml \
     && ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone \
-    && apt-get remove -y curl gnupg2 \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
