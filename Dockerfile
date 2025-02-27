@@ -2,6 +2,7 @@ ARG TAG
 FROM dunglas/frankenphp:${TAG} AS runner
 
 SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
+RUN sed -i 's#/bin/sh#/bin/bash#g' /etc/passwd
 
 LABEL maintainer="Clovis Muneza"
 
