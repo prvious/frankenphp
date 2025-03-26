@@ -1,4 +1,4 @@
-name: Build and Publish Docker image
+name: Build Docker image
 concurrency:
     cancel-in-progress: true
     group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,7 +14,7 @@ on:
 permissions:
     contents: read
 env:
-    IMAGE_NAME: 'ghcr.io/munezaclovis/frankenphp'
+    IMAGE_NAME: 'ghcr.io/{{ github.repository }}'
 
 jobs:
     prepare:
