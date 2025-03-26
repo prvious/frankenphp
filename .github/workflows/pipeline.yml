@@ -14,7 +14,7 @@ on:
 permissions:
     contents: read
 env:
-    IMAGE_NAME: 'ghcr.io/{{ github.repository }}'
+    IMAGE_NAME: 'ghcr.io/${{ github.repository }}'
 
 jobs:
     prepare:
