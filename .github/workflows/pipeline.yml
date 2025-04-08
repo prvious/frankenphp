@@ -21,7 +21,7 @@ jobs:
         runs-on: ubuntu-24.04
         outputs:
             # Push if it's a scheduled job, a tag, or if we're committing to the main branch
-            push: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.version) || startsWith(github.ref, 'refs/tags/') || (github.ref == 'refs/heads/main' && github.event_name != 'pull_request')) && true || false }}
+            push: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.version) || (github.ref == 'refs/heads/main' && github.event_name != 'pull_request')) && true || false }}
             variants: ${{ steps.matrix.outputs.variants }}
             platforms: ${{ steps.matrix.outputs.platforms }}
             metadata: ${{ steps.matrix.outputs.metadata }}
@@ -126,7 +126,7 @@ jobs:
               id: build
               uses: docker/bake-action@v6
               with:
-                  push: ${{ !fromJson(needs.prepare.outputs.push) }}
+                  push: ${{ fromJson(needs.prepare.outputs.push) }}
                   targets: runner-${{ matrix.variant }}
                   # Remove tags to prevent "can't push tagged ref [...] by digest" error
                   set: |
