@@ -89,14 +89,6 @@ jobs:
             matrix:
                 variant: ${{ fromJson(needs.prepare.outputs.variants) }}
                 platform: ${{ fromJson(needs.prepare.outputs.platforms) }}
-                include:
-                    - race: ''
-                    - platform: linux/amd64
-                      race: '-race' # The Go race detector is only supported on amd64
-                exclude:
-                    # arm/v6 is only available for Alpine: https://github.com/docker-library/golang/issues/502
-                    - variant: php-${{ needs.prepare.outputs.php83_version }}-bookworm
-                      platform: linux/arm/v6
         steps:
             - name: Prepare
               id: prepare
