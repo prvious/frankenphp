@@ -5,6 +5,7 @@ SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
 RUN sed -i 's#/bin/sh#/bin/bash#g' /etc/passwd
 
 LABEL maintainer="Clovis Muneza"
+LABEL org.opencontainers.image.source="https://github.com/prvious/frankenphp"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
@@ -32,4 +33,5 @@ RUN apt update \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && cp "${PHP_INI_DIR}/php.ini-development" "${PHP_INI_DIR}/php.ini"
+    && cp "${PHP_INI_DIR}/php.ini-development" "${PHP_INI_DIR}/php.ini" \
+    && chsh -s /bin/bash root
