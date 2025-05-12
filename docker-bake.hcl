@@ -59,7 +59,7 @@ function "_php_version" {
 }
 
 target "default" {
-    name = "php-${replace(php-version, ".", "-")}"
+    name = "${tgt}-php-${replace(php-version, ".", "-")}"
     matrix = {
         php-version = split(",", PHP_VERSION)
         tgt = ["runner"]
