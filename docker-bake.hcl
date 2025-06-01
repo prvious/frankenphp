@@ -4,6 +4,8 @@ variable "IMAGE_NAME" {
 
 variable "PHP_VERSION" {}
 
+variable "SHA" {}
+
 variable "VERSION" {}
 
 variable "LATEST" {}
