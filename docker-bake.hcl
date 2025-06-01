@@ -1,38 +1,26 @@
 variable "IMAGE_NAME" {
+    default = "ghcr.io/prvious/frankenphp"
 }
 
-variable "PHP_VERSION" {
-    default = "8.3,8.4"
-}
+variable "PHP_VERSION" {}
 
-variable "SHA" {}
+variable "VERSION" {}
 
-variable "LATEST" {
-    default = true
-}
+variable "LATEST" {}
 
-variable DEFAULT_PHP_VERSION {
-    default = "8.4"
-}
-
-function "tag" {
-    params = [version, php-version]
-    result = [
-        php-version == DEFAULT_PHP_VERSION && version != "" ? "${IMAGE_NAME}:${trimprefix("${version}", "latest-")}" : "",
-        version != "" ? "${IMAGE_NAME}:${trimprefix("${version}-php${php-version}", "latest-")}" : "",
-    ]
-}
-
-# cleanTag ensures that the tag is a valid Docker tag
-# cleanTag ensures that the tag is a valid Docker tag
-# see https://github.com/distribution/distribution/blob/v2.8.2/reference/regexp.go#L37
 function "clean_tag" {
     params = [tag]
     result = substr(regex_replace(regex_replace(tag, "[^\\w.-]", "-"), "^([^\\w])", "r$0"), 0, 127)
 }
 
-# semver adds semver-compliant tag if a semver version number is passed, or returns the revision itself
-# see https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+function "tag" {
+    params = [php-version]
+    result = [
+       "${IMAGE_NAME}:php${php-version}",
+        php-version == LATEST ? "${IMAGE_NAME}:latest" : ""
+    ]
+}
+
 function "semver" {
   params = [rev]
   result = __semver(_semver(regexall("^v?(?P<major>0|[1-9]\\d*)\\.(?P<minor>0|[1-9]\\d*)\\.(?P<patch>0|[1-9]\\d*)(?:-(?P<prerelease>(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$", rev)))
@@ -45,7 +33,7 @@ function "_semver" {
 
 function "__semver" {
     params = [v]
-    result = v == {} ? [] : v.prerelease == null ? [v.major, "${v.major}.${v.minor}", "${v.major}.${v.minor}.${v.patch}"] : ["${v.major}.${v.minor}.${v.patch}-${v.prerelease}"]
+    result = v == {} ? [clean_tag(VERSION)] : v.prerelease == null ? [v.major, "${v.major}.${v.minor}", "${v.major}.${v.minor}.${v.patch}"] : ["${v.major}.${v.minor}.${v.patch}-${v.prerelease}"]
 }
 
 function "php_version" {
@@ -55,39 +43,42 @@ function "php_version" {
 
 function "_php_version" {
     params = [v, m]
-    result = "${m.major}.${m.minor}" == DEFAULT_PHP_VERSION ? [v, "${m.major}.${m.minor}", "${m.major}"] : [v, "${m.major}.${m.minor}"]
+    result = "${m.major}.${m.minor}" == "8.4" ? [v, "${m.major}.${m.minor}", "${m.major}"] : [v, "${m.major}.${m.minor}"]
 }
 
 target "default" {
-    name = "${tgt}-php-${replace(php-version, ".", "-")}"
+    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}"
     matrix = {
-        php-version = split(",", PHP_VERSION)
+        php-version = split(",", replace(PHP_VERSION, " ", ""))
+        os = ["bookworm"]
         tgt = ["runner"]
-    }
-    contexts = {
-        php-base = "docker-image://php:${php-version}-zts-bookworm"
     }
     dockerfile = "Dockerfile"
     context = "./"
-    target = tgt
-    # arm/v6 is only available for Alpine: https://github.com/docker-library/golang/issues/502
+    contexts = {
+        php-base = "docker-image://php:${php-version}-zts-${os}"
+    }
     platforms = [
         "linux/amd64",
         "linux/arm64"
     ]
+    
+    target = "runner"
+    
     tags = distinct(flatten(
         [for pv in php_version(php-version) : flatten([
-            LATEST ? tag("latest", pv) : [],
-            tag(SHA == "" ? "" : "sha-${substr(SHA, 0, 7)}", pv),
-            [for v in semver(tgt) : tag(v, pv, tgt)]
+            tag(pv),
+            [for v in semver(VERSION) : tag(pv)]
         ])
     ]))
+    
+    args = {
+        VERSION = "${clean_tag(php-version)}"
+    }
     labels = {
+        "org.opencontainers.image.description" = "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
         "org.opencontainers.image.created" = "${timestamp()}"
         "org.opencontainers.image.version" = "${clean_tag(php-version)}"
         "org.opencontainers.image.revision" = SHA
-    }
-    args = {
-        TAG = "php${clean_tag(php-version)}"
     }
 }

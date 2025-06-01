@@ -1,7 +1,8 @@
-name: Build Docker image
+name: build image
 concurrency:
     cancel-in-progress: true
     group: ${{ github.workflow }}-${{ github.ref }}
+
 on:
     pull_request:
         branches:
@@ -14,7 +15,7 @@ on:
 permissions:
     contents: read
 env:
-    IMAGE_NAME: 'ghcr.io/${{ github.repository }}'
+    IMAGE_NAME: 'ghcr.io/prvious/frankenphp'
 
 jobs:
     prepare:
@@ -26,54 +27,41 @@ jobs:
             platforms: ${{ steps.matrix.outputs.platforms }}
             metadata: ${{ steps.matrix.outputs.metadata }}
             php_version: ${{ steps.check.outputs.php_version }}
-            php83_version: ${{ steps.check.outputs.php83_version }}
+            latest_version: ${{ steps.check.outputs.latest_version }}
             skip: ${{ steps.check.outputs.skip }}
-            ref: ${{ steps.check.outputs.ref || (github.event_name == 'workflow_dispatch' && inputs.version) || '' }}
+
         steps:
             - name: Check PHP versions
               id: check
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  set -e
-
                   PHP_83_LATEST=$(skopeo inspect docker://docker.io/dunglas/frankenphp:php8.3 --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
                   PHP_84_LATEST=$(skopeo inspect docker://docker.io/dunglas/frankenphp:php8.4 --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-
-                  echo "Fetched PHP versions: PHP_8.3=${PHP_83_LATEST}, PHP_8.4=${PHP_84_LATEST}"
-
-                  # Verify the Docker images for FrankenPHP
-                  FRANKENPHP_83_LATEST=$(skopeo inspect docker://ghcr.io/${{ github.repository }}:php8.3 --override-os linux --override-arch amd64 || echo "error")
-                  FRANKENPHP_84_LATEST=$(skopeo inspect docker://ghcr.io/${{ github.repository }}:php8.4 --override-os linux --override-arch amd64 || echo "error")
-
-                  if [[ "${FRANKENPHP_83_LATEST}" == "error" ]]; then
-                      echo "Error: Failed to fetch details for ghcr.io/${{ github.repository }}:php8.3" >&2
-                      exit 1
+                  {
+                    echo php_version="${PHP_83_LATEST},${PHP_84_LATEST}"
+                    echo php83_version="${PHP_83_LATEST//./-}"
+                    echo php84_version="${PHP_84_LATEST//./-}"
+                    echo latest_version="${PHP_84_LATEST}"
+                  } >> "${GITHUB_OUTPUT}"
+                  # Check if the Docker images must be rebuilt
+                  if [[ "${GITHUB_EVENT_NAME}" != "schedule"  ]]; then
+                      echo skip=false >> "${GITHUB_OUTPUT}"
+                      exit 0
                   fi
-
-                  if [[ "${FRANKENPHP_84_LATEST}" == "error" ]]; then
-                      echo "Error: Failed to fetch details for ghcr.io/${{ github.repository }}:php8.4" >&2
-                      exit 1
-                  fi
-
-                  # Process the responses
-                  FRANKENPHP_83_VERSION=$(echo "${FRANKENPHP_83_LATEST}" | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-                  FRANKENPHP_84_VERSION=$(echo "${FRANKENPHP_84_LATEST}" | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-
-                  echo php_version="${PHP_83_LATEST},${PHP_84_LATEST}" >> "${GITHUB_OUTPUT}"
-                  echo php83_version="${PHP_83_LATEST//./-}" >> "${GITHUB_OUTPUT}"
-                  echo php84_version="${PHP_84_LATEST//./-}" >> "${GITHUB_OUTPUT}"
-
-                  # Check if images need rebuilding
-                  if [[ "${FRANKENPHP_83_VERSION}" == "${PHP_83_LATEST}" ]] && [[ "${FRANKENPHP_84_VERSION}" == "${PHP_84_LATEST}" ]]; then
+                  FRANKENPHP_83_LATEST=$(skopeo inspect docker://ghcr.io/prvious/frankenphp:php8.3 --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
+                  FRANKENPHP_84_LATEST=$(skopeo inspect docker://ghcr.io/prvious/frankenphp:php8.4 --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
+                  if [[ "${FRANKENPHP_83_LATEST}" == "${PHP_83_LATEST}" ]] && [[ "${FRANKENPHP_84_LATEST}" == "${PHP_84_LATEST}" ]]; then
                       echo skip=true >> "${GITHUB_OUTPUT}"
                       exit 0
                   fi
             - uses: actions/checkout@v4
               if: ${{ !fromJson(steps.check.outputs.skip) }}
+
             - name: Set up Docker Buildx
               if: ${{ !fromJson(steps.check.outputs.skip) }}
               uses: docker/setup-buildx-action@v3
+
             - name: Create variants matrix
               if: ${{ !fromJson(steps.check.outputs.skip) }}
               id: matrix
@@ -87,17 +75,16 @@ jobs:
                     echo platforms="$(jq -c 'first(.target[]) | .platforms' <<< "${METADATA}")"
                   } >> "${GITHUB_OUTPUT}"
               env:
-                  SHA: ${{ github.sha }}
-                  VERSION: ${{ (github.ref_type == 'tag' && github.ref_name) || steps.check.outputs.ref || 'dev' }}
                   PHP_VERSION: ${{ steps.check.outputs.php_version }}
+                  LATEST: ${{ steps.check.outputs.latest_version }}
     build:
         runs-on: ${{ startsWith(matrix.platform, 'linux/arm') && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
         needs:
             - prepare
-        if: ${{ !fromJson(needs.prepare.outputs.skip) }}
         permissions:
             contents: read
             packages: write
+        if: ${{ !fromJson(needs.prepare.outputs.skip) }}
         strategy:
             fail-fast: false
             matrix:
@@ -118,7 +105,7 @@ jobs:
               with:
                   platforms: ${{ matrix.platform }}
 
-            - name: Login to GitHub Container Registry
+            - name: Login to ghcr.io
               if: fromJson(needs.prepare.outputs.push)
               uses: docker/login-action@v3
               with:
@@ -137,14 +124,13 @@ jobs:
                       ${{ (github.event_name == 'pull_request') && '*.args.NO_COMPRESS=1' || '' }}
                       *.tags=
                       *.platform=${{ matrix.platform }}
-                      runner-${{ matrix.variant }}.cache-from=type=gha,scope=runner-${{ matrix.variant }}-${{ needs.prepare.outputs.ref || github.ref }}-${{ matrix.platform }}
+                      runner-${{ matrix.variant }}.cache-from=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
                       runner-${{ matrix.variant }}.cache-from=type=gha,scope=refs/heads/main-runner-${{ matrix.variant }}-${{ matrix.platform }}
-                      runner-${{ matrix.variant }}.cache-to=type=gha,scope=runner-${{ matrix.variant }}-${{ needs.prepare.outputs.ref || github.ref }}-${{ matrix.platform }},ignore-error=true
+                      runner-${{ matrix.variant }}.cache-to=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }},ignore-error=true
                       ${{ fromJson(needs.prepare.outputs.push) && format('*.output=type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE_NAME) || '' }}
               env:
-                  SHA: ${{ github.sha }}
-                  VERSION: ${{ (github.ref_type == 'tag' && github.ref_name) || needs.prepare.outputs.ref || 'dev' }}
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
+                  LATEST: ${{ needs.prepare.outputs.latest_version }}
 
             - # Workaround for https://github.com/actions/runner/pull/2477#issuecomment-1501003600
               name: Export metadata
