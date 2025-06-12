@@ -75,7 +75,7 @@ target "default" {
     ]))
     
     args = {
-        VERSION = "${clean_tag(php-version)}"
+        VERSION = "${clean_tag(php-version)}-${os}"
     }
     labels = {
         "org.opencontainers.image.description" = "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
