@@ -43,3 +43,4 @@ RUN apt update \
     && chown -R ${USER}:${USER} /data/caddy && chown -R ${USER}:${USER} /config/caddy && chown -R ${USER}:${USER} /app
 
 WORKDIR /app
+USER ${USER}
