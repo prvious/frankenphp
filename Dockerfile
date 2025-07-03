@@ -19,7 +19,7 @@ ENV PATH=${FNM_DIR}/aliases/default/bin:$PATH
 COPY ./env.sh /etc/profile.d/env.sh
 
 RUN apt update \
-    && apt install -y supervisor git unzip \
+    && apt install -y supervisor git unzip default-mysql-client \
     && mkdir -p "${FNM_DIR}" \
     && curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
     && ln -s ${FNM_DIR}/fnm /usr/bin/ && chmod +x /usr/bin/fnm \
