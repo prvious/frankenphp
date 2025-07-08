@@ -19,7 +19,7 @@ ENV PATH=${FNM_DIR}/aliases/default/bin:$PATH
 COPY ./env.sh /etc/profile.d/env.sh
 
 RUN apt update \
-    && apt install -y supervisor git unzip default-mysql-client \
+    && apt install -y supervisor git unzip default-mysql-client postgresql-client \
     && mkdir -p "${FNM_DIR}" \
     && curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
     && ln -s ${FNM_DIR}/fnm /usr/bin/ && chmod +x /usr/bin/fnm \
@@ -32,7 +32,7 @@ RUN apt update \
     && npm install -g npm pnpm \
     && apt install -y jpegoptim optipng pngquant gifsicle libavif-bin ffmpeg \
     && npm install -g npm pnpm svgo \
-    && install-php-extensions @composer mysqli pdo_mysql bcmath gd imap pcntl zip intl exif ftp xml pdo_sqlsrv sqlsrv \
+    && install-php-extensions @composer mysqli pdo_mysql pgsql pdo_pgsql bcmath gd imap pcntl zip intl exif ftp xml pdo_sqlsrv sqlsrv \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
