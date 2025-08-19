@@ -32,7 +32,7 @@ RUN apt update \
     && npm install -g npm pnpm \
     && apt install -y jpegoptim optipng pngquant gifsicle libavif-bin ffmpeg \
     && npm install -g npm pnpm svgo \
-    && install-php-extensions @composer mysqli pdo_mysql pgsql pdo_pgsql bcmath gd imap pcntl zip intl exif ftp xml pdo_sqlsrv sqlsrv \
+    && install-php-extensions @composer mysqli pdo_mysql pgsql pdo_pgsql bcmath gd imap pcntl zip intl exif ftp xml pdo_sqlsrv sqlsrv sockets \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
