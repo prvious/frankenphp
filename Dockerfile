@@ -19,7 +19,10 @@ ENV PATH=${FNM_DIR}/aliases/default/bin:$PATH
 COPY ./env.sh /etc/profile.d/env.sh
 
 RUN apt update \
-    && apt install -y supervisor git unzip default-mysql-client postgresql-client \
+    && apt-get install -y gnupg lsb-release supervisor git unzip default-mysql-client \
+    && echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
+    && apt-get install -y postgresql-client-17 \
     && mkdir -p "${FNM_DIR}" \
     && curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
     && ln -s ${FNM_DIR}/fnm /usr/bin/ && chmod +x /usr/bin/fnm \
