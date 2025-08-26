@@ -21,7 +21,8 @@ COPY ./env.sh /etc/profile.d/env.sh
 RUN apt update \
     && apt-get install -y gnupg lsb-release supervisor git unzip default-mysql-client \
     && echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
-    && curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
+    && curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg \
+    && apt-get update \
     && apt-get install -y postgresql-client-17 \
     && mkdir -p "${FNM_DIR}" \
     && curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
