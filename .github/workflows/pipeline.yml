@@ -7,15 +7,23 @@ on:
     pull_request:
         branches:
             - main
+        paths:
+            - "Dockerfile"
+            - "docker-bake.hcl"
+            - "env.sh"
     push:
         branches:
             - main
+        paths:
+            - "Dockerfile"
+            - "docker-bake.hcl"
+            - "env.sh"
     schedule:
-        - cron: '0 7 * * *'
+        - cron: "0 7 * * *"
 permissions:
     contents: read
 env:
-    IMAGE_NAME: 'ghcr.io/prvious/frankenphp'
+    IMAGE_NAME: "ghcr.io/prvious/frankenphp"
 
 jobs:
     prepare:
@@ -166,7 +174,7 @@ jobs:
             fail-fast: false
             matrix:
                 variant: ${{ fromJson(needs.prepare.outputs.variants) }}
-                target: ['runner']
+                target: ["runner"]
         steps:
             - name: Download metadata
               uses: actions/download-artifact@v4
