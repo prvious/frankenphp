@@ -3,11 +3,6 @@ name: opencode
 on:
     issue_comment:
         types: [created]
-permissions:
-    id-token: write
-    contents: write
-    pull-requests: write
-    issues: write
 
 jobs:
     opencode:
@@ -18,8 +13,10 @@ jobs:
             startsWith(github.event.comment.body, '/opencode')
         runs-on: ubuntu-latest
         permissions:
-            contents: read
             id-token: write
+            contents: write
+            pull-requests: write
+            issues: write
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
@@ -27,6 +24,8 @@ jobs:
             - name: Run opencode
               uses: sst/opencode/github@latest
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ github.token }}
               with:
                   model: github-copilot/claude-sonnet-4
+                  token: ${{ github.token }}
+                  github_token: ${{ github.token }}
