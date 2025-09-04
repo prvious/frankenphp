@@ -79,8 +79,8 @@ jobs:
               shell: bash
               run: |
                   set -e
-                  # Print metadata for both prod and dev targets so we capture all expanded runner-* targets
-                  METADATA="$(docker buildx bake --print prod dev | jq -c)"
+                  # Print metadata for all targets so we capture all expanded runner-* targets
+                  METADATA="$(docker buildx bake --print | jq -c)"
                   {
                     echo metadata="${METADATA}"
                     echo variants="$(jq -c '[.target | keys[] | select(startswith("runner-")) | sub("^runner-"; "")] | unique' <<< "${METADATA}")"
@@ -130,19 +130,56 @@ jobs:
               uses: docker/bake-action@v6
               with:
                   push: ${{ fromJson(needs.prepare.outputs.push) }}
+                  load: true
                   targets: runner-${{ matrix.variant }}
-                  # Remove tags to prevent "can't push tagged ref [...] by digest" error
                   set: |
                       ${{ (github.event_name == 'pull_request') && '*.args.NO_COMPRESS=1' || '' }}
-                      *.tags=
+                      ${{ fromJson(needs.prepare.outputs.push) && '*.tags=' || '' }}
                       *.platform=${{ matrix.platform }}
-                      runner-${{ matrix.variant }}.cache-from=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
-                      runner-${{ matrix.variant }}.cache-from=type=gha,scope=refs/heads/main-runner-${{ matrix.variant }}-${{ matrix.platform }}
-                      runner-${{ matrix.variant }}.cache-to=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }},ignore-error=true
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-refs/heads/main-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-refs/heads/main
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}
+                      *.cache-from=type=gha,scope=base-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=base
+                      *.cache-to=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }},mode=max,ignore-error=true
+                      *.cache-to=type=gha,scope=${{ matrix.variant }}-${{ github.ref }},mode=max,ignore-error=true
+                      *.cache-to=type=gha,scope=base-${{ matrix.platform }},mode=max,ignore-error=true
+                      *.cache-to=type=gha,scope=base,mode=max,ignore-error=true
                       ${{ fromJson(needs.prepare.outputs.push) && format('*.output=type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE_NAME) || '' }}
               env:
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
                   LATEST: ${{ needs.prepare.outputs.latest_version }}
+
+            - name: Export image as tarball
+              run: |
+                  # Get the built image name from bake metadata
+                  IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
+                  echo "Exporting image: ${IMAGE_NAME}"
+
+                  # Create directory for image export
+                  mkdir -p /tmp/images
+
+                  # Export the image as uncompressed tarball (much faster)
+                  echo "Saving image to tarball..."
+                  time docker save "${IMAGE_NAME}" > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
+
+                  # Verify the tarball was created
+                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
+                  ls -lh "${TARBALL}"
+                  echo "Export completed!"
+              env:
+                  PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
+                  LATEST: ${{ needs.prepare.outputs.latest_version }}
+
+            - name: Upload image artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: image-runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}
+                  path: /tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar
+                  retention-days: 1
 
             - # Workaround for https://github.com/actions/runner/pull/2477#issuecomment-1501003600
               name: Export metadata
@@ -162,11 +199,87 @@ jobs:
                   path: /tmp/metadata/runner/*
                   if-no-files-found: error
                   retention-days: 1
+
+    test:
+        runs-on: ${{ startsWith(matrix.platform, 'linux/arm') && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+        needs:
+            - prepare
+            - build
+        if: ${{ !fromJson(needs.prepare.outputs.skip) }}
+        strategy:
+            fail-fast: false
+            matrix:
+                variant: ${{ fromJson(needs.prepare.outputs.variants) }}
+                platform: ${{ fromJson(needs.prepare.outputs.platforms) }}
+        steps:
+            - name: Prepare
+              id: prepare
+              run: |
+                  platform=${{ matrix.platform }}
+                  echo "sanitized_platform=${platform//\//-}" >> "${GITHUB_OUTPUT}"
+
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Download built image
+              uses: actions/download-artifact@v4
+              with:
+                  name: image-runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}
+                  path: /tmp/images
+
+            - name: Load image from tarball
+              run: |
+                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
+
+                  echo "Loading image from tarball: ${TARBALL}"
+
+                  # Verify tarball exists
+                  if [[ ! -f "${TARBALL}" ]]; then
+                      echo "Error: Tarball not found!"
+                      ls -la /tmp/images/
+                      exit 1
+                  fi
+
+                  # Check tarball size
+                  SIZE=$(stat -f%z "${TARBALL}" 2>/dev/null || stat -c%s "${TARBALL}")
+                  echo "Tarball size: $((SIZE / 1024 / 1024))MB"
+
+                  # Load the image (much faster without decompression)
+                  echo "Loading image into Docker..."
+                  time docker load < "${TARBALL}"
+
+                  # Verify images were loaded
+                  echo "Images loaded successfully:"
+                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}"
+
+            - name: Test image environment
+              run: |
+                  # Get the built image name
+                  if [[ "${{ matrix.variant }}" == *"-dev" ]]; then
+                      ENV_TYPE="dev"
+                  else
+                      ENV_TYPE="production"
+                  fi
+                    
+                  IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
+
+                  echo "🧪 Testing ${ENV_TYPE} environment in image: ${IMAGE_NAME}"
+
+                  # Run our test script inside the container
+                  docker run --rm -v "$PWD/test.php:/test.php:ro" -e FORCE_COLOR=1 "${IMAGE_NAME}" php /test.php "${ENV_TYPE}"
+              env:
+                  PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
+                  LATEST: ${{ needs.prepare.outputs.latest_version }}
+
     push:
         runs-on: ubuntu-24.04
         needs:
             - prepare
             - build
+            - test
         if: fromJson(needs.prepare.outputs.push)
         permissions:
             contents: read
@@ -175,12 +288,11 @@ jobs:
             fail-fast: false
             matrix:
                 variant: ${{ fromJson(needs.prepare.outputs.variants) }}
-                target: ["runner"]
         steps:
             - name: Download metadata
               uses: actions/download-artifact@v4
               with:
-                  pattern: metadata-${{ matrix.target }}-${{ matrix.variant }}-*
+                  pattern: metadata-runner-${{ matrix.variant }}-*
                   path: /tmp/metadata
                   merge-multiple: true
 
@@ -199,7 +311,7 @@ jobs:
               run: |
                   set -x
                   # shellcheck disable=SC2046,SC2086
-                  docker buildx imagetools create $(jq -cr '.target."${{ matrix.target }}-${{ matrix.variant }}".tags | map("-t " + .) | join(" ")' <<< ${METADATA}) \
+                  docker buildx imagetools create $(jq -cr '.target.runner-${{ matrix.variant }}".tags | map("-t " + .) | join(" ")' <<< ${METADATA}) \
                     $(printf "${IMAGE_NAME}@sha256:%s " *)
               env:
                   METADATA: ${{ needs.prepare.outputs.metadata }}
@@ -207,6 +319,6 @@ jobs:
             - name: Inspect image
               run: |
                   # shellcheck disable=SC2046,SC2086
-                  docker buildx imagetools inspect $(jq -cr '.target."${{ matrix.target }}-${{ matrix.variant }}".tags | first' <<< ${METADATA})
+                  docker buildx imagetools inspect $(jq -cr '.target.runner-${{ matrix.variant }}".tags | first' <<< ${METADATA})
               env:
                   METADATA: ${{ needs.prepare.outputs.metadata }}

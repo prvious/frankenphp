@@ -48,49 +48,21 @@ function "_php_version" {
     result = "${m.major}.${m.minor}" == "8.4" ? [v, "${m.major}.${m.minor}", "${m.major}"] : [v, "${m.major}.${m.minor}"]
 }
 
-target "prod" {
-    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}"
-    matrix = {
-        php-version = split(",", replace(PHP_VERSION, " ", ""))
-        os = ["bookworm"]
-        tgt = ["runner"]
-    }
-    dockerfile = "Dockerfile"
-    context = "./"
-    contexts = {
-        php-base = "docker-image://php:${php-version}-zts-${os}"
-    }
-    platforms = [
-        "linux/amd64",
-        "linux/arm64"
-    ]
-    
-    target = "runner"
-    
-    tags = distinct(flatten(
-        [for pv in php_version(php-version) : flatten([
-            tag(pv),
-            [for v in semver(VERSION) : tag(pv)]
-        ])
-    ]))
-    
-    args = {
-        VERSION = "${clean_tag(php-version)}-${os}"
-    }
-    labels = {
-        "org.opencontainers.image.description" = "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
-        "org.opencontainers.image.created" = "${timestamp()}"
-        "org.opencontainers.image.version" = "${clean_tag(php-version)}"
-        "org.opencontainers.image.revision" = SHA
-    }
+group "dev" {
+    targets = [for pv in split(",", replace(PHP_VERSION, " ", "")) : "runner-php-${replace(pv, ".", "-")}-bookworm-dev"]
 }
 
-target "dev" {
-    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}-dev"
+group "prod" {
+    targets = [for pv in split(",", replace(PHP_VERSION, " ", "")) : "runner-php-${replace(pv, ".", "-")}-bookworm"]
+}
+
+target "default" {
+    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}${variant == "dev" ? "-dev" : ""}"
     matrix = {
         php-version = split(",", replace(PHP_VERSION, " ", ""))
         os = ["bookworm"]
         tgt = ["runner"]
+        variant = ["prod", "dev"]
     }
     dockerfile = "Dockerfile"
     context = "./"
@@ -102,23 +74,28 @@ target "dev" {
         "linux/arm64"
     ]
     
-    target = "runner"
+    target = variant
     
     tags = distinct(flatten(
+        variant == "dev" ? 
         [for pv in php_version(php-version) : flatten([
             [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"],
             [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"]]
-        ])
-    ]))
+        ])] :
+        [for pv in php_version(php-version) : flatten([
+            tag(pv),
+            [for v in semver(VERSION) : tag(pv)]
+        ])]
+    ))
     
     args = {
         VERSION = "${clean_tag(php-version)}-${os}"
-        INSTALL_XDEBUG = "true"
     }
+    
     labels = {
-        "org.opencontainers.image.description" = "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, Xdebug, and a few other goodies."
+        "org.opencontainers.image.description" = variant == "dev" ? "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, Xdebug, and a few other goodies." : "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
         "org.opencontainers.image.created" = "${timestamp()}"
-        "org.opencontainers.image.version" = "${clean_tag(php-version)}-dev"
+        "org.opencontainers.image.version" = variant == "dev" ? "${clean_tag(php-version)}-dev" : "${clean_tag(php-version)}"
         "org.opencontainers.image.revision" = SHA
     }
 }
