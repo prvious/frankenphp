@@ -48,7 +48,7 @@ function "_php_version" {
     result = "${m.major}.${m.minor}" == "8.4" ? [v, "${m.major}.${m.minor}", "${m.major}"] : [v, "${m.major}.${m.minor}"]
 }
 
-target "default" {
+target "prod" {
     name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}"
     matrix = {
         php-version = split(",", replace(PHP_VERSION, " ", ""))
@@ -81,6 +81,48 @@ target "default" {
         "org.opencontainers.image.description" = "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
         "org.opencontainers.image.created" = "${timestamp()}"
         "org.opencontainers.image.version" = "${clean_tag(php-version)}"
+        "org.opencontainers.image.revision" = SHA
+    }
+}
+
+group "default" {
+    targets = ["prod", "dev"]
+}
+
+target "dev" {
+    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}-dev"
+    matrix = {
+        php-version = split(",", replace(PHP_VERSION, " ", ""))
+        os = ["bookworm"]
+        tgt = ["runner"]
+    }
+    dockerfile = "Dockerfile"
+    context = "./"
+    contexts = {
+        php-base = "docker-image://php:${php-version}-zts-${os}"
+    }
+    platforms = [
+        "linux/amd64",
+        "linux/arm64"
+    ]
+    
+    target = "runner"
+    
+    tags = distinct(flatten(
+        [for pv in php_version(php-version) : flatten([
+            [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"],
+            [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"]]
+        ])
+    ]))
+    
+    args = {
+        VERSION = "${clean_tag(php-version)}-${os}"
+        INSTALL_XDEBUG = "true"
+    }
+    labels = {
+        "org.opencontainers.image.description" = "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, Xdebug, and a few other goodies."
+        "org.opencontainers.image.created" = "${timestamp()}"
+        "org.opencontainers.image.version" = "${clean_tag(php-version)}-dev"
         "org.opencontainers.image.revision" = SHA
     }
 }
