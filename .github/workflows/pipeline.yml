@@ -132,10 +132,9 @@ jobs:
                   push: ${{ fromJson(needs.prepare.outputs.push) }}
                   load: true
                   targets: runner-${{ matrix.variant }}
-                  # Remove tags to prevent "can't push tagged ref [...] by digest" error
                   set: |
                       ${{ (github.event_name == 'pull_request') && '*.args.NO_COMPRESS=1' || '' }}
-                      *.tags=
+                      ${{ fromJson(needs.prepare.outputs.push) && '*.tags=' || '' }}
                       *.platform=${{ matrix.platform }}
                       *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
                       *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}
@@ -156,13 +155,13 @@ jobs:
 
             - name: Export image as tarball
               run: |
-                  # List all available images first
-                  echo "Available images:"
-                  docker images
-
                   # Get the built image name from bake metadata
                   IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
-                  echo "Target image name: ${IMAGE_NAME}"
+                  echo "Exporting image: ${IMAGE_NAME}"
+
+                  # List all available images for debugging
+                  echo "Available images:"
+                  docker images
 
                   # Verify the image exists locally
                   if ! docker image inspect "${IMAGE_NAME}" > /dev/null 2>&1; then
@@ -171,8 +170,6 @@ jobs:
                       docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}"
                       exit 1
                   fi
-
-                  echo "Image found, exporting..."
 
                   # Create directory for image export
                   mkdir -p /tmp/images
