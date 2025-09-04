@@ -79,8 +79,8 @@ jobs:
               shell: bash
               run: |
                   set -e
-                  # Print metadata for both prod and dev targets so we capture all expanded runner-* targets
-                  METADATA="$(docker buildx bake --print prod dev | jq -c)"
+                  # Print metadata for all targets so we capture all expanded runner-* targets
+                  METADATA="$(docker buildx bake --print | jq -c)"
                   {
                     echo metadata="${METADATA}"
                     echo variants="$(jq -c '[.target | keys[] | select(startswith("runner-")) | sub("^runner-"; "")] | unique' <<< "${METADATA}")"
@@ -136,8 +136,8 @@ jobs:
                       ${{ (github.event_name == 'pull_request') && '*.args.NO_COMPRESS=1' || '' }}
                       *.tags=
                       *.platform=${{ matrix.platform }}
-                      runner-${{ matrix.variant }}.cache-from=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
-                      runner-${{ matrix.variant }}.cache-from=type=gha,scope=refs/heads/main-runner-${{ matrix.variant }}-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=refs/heads/main-runner-${{ matrix.variant }}-${{ matrix.platform }}
                       runner-${{ matrix.variant }}.cache-to=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }},ignore-error=true
                       ${{ fromJson(needs.prepare.outputs.push) && format('*.output=type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE_NAME) || '' }}
               env:
@@ -162,11 +162,63 @@ jobs:
                   path: /tmp/metadata/runner/*
                   if-no-files-found: error
                   retention-days: 1
+
+    test:
+        runs-on: ${{ startsWith(matrix.platform, 'linux/arm') && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+        needs:
+            - prepare
+            - build
+        if: ${{ !fromJson(needs.prepare.outputs.skip) }}
+        strategy:
+            fail-fast: false
+            matrix:
+                variant: ${{ fromJson(needs.prepare.outputs.variants) }}
+                platform: ${{ fromJson(needs.prepare.outputs.platforms) }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Load built image for testing
+              uses: docker/bake-action@v6
+              with:
+                  targets: runner-${{ matrix.variant }}
+                  load: true
+                  set: |
+                      *.platform=${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=refs/heads/main-runner-${{ matrix.variant }}-${{ matrix.platform }}
+              env:
+                  PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
+                  LATEST: ${{ needs.prepare.outputs.latest_version }}
+
+            - name: Test image environment
+              run: |
+                  # Get the built image name
+                  if [[ "${{ matrix.variant }}" == *"-dev" ]]; then
+                      ENV_TYPE="dev"
+                  else
+                      ENV_TYPE="production"
+                  fi
+                    
+                  IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
+
+                  echo "🧪 Testing ${ENV_TYPE} environment in image: ${IMAGE_NAME}"
+
+                  # Run our test script inside the container
+                  docker run --rm -v "$PWD/test.php:/test.php:ro" "${IMAGE_NAME}" php /test.php "${ENV_TYPE}"
+              env:
+                  PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
+                  LATEST: ${{ needs.prepare.outputs.latest_version }}
+
     push:
         runs-on: ubuntu-24.04
         needs:
             - prepare
             - build
+            - test
         if: fromJson(needs.prepare.outputs.push)
         permissions:
             contents: read
