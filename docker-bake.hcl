@@ -85,10 +85,6 @@ target "prod" {
     }
 }
 
-group "default" {
-    targets = ["prod", "dev"]
-}
-
 target "dev" {
     name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}-dev"
     matrix = {
