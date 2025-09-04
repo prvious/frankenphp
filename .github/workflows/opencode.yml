@@ -27,5 +27,3 @@ jobs:
                   GITHUB_TOKEN: ${{ github.token }}
               with:
                   model: github-copilot/claude-sonnet-4
-                  token: ${{ github.token }}
-                  github_token: ${{ github.token }}
