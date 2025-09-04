@@ -159,35 +159,17 @@ jobs:
                   IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
                   echo "Exporting image: ${IMAGE_NAME}"
 
-                  # List all available images for debugging
-                  echo "Available images:"
-                  docker images
-
-                  # Verify the image exists locally
-                  if ! docker image inspect "${IMAGE_NAME}" > /dev/null 2>&1; then
-                      echo "Error: Image ${IMAGE_NAME} not found locally!"
-                      echo "Available images:"
-                      docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}"
-                      exit 1
-                  fi
-
                   # Create directory for image export
                   mkdir -p /tmp/images
 
-                  # Export the image as a tarball
-                  docker save "${IMAGE_NAME}" > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
+                  # Export the image as uncompressed tarball (much faster)
+                  echo "Saving image to tarball..."
+                  time docker save "${IMAGE_NAME}" > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
 
-                  # Compress the tarball
-                  gzip "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
-
-                  # Verify the tarball was created and is valid
-                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar.gz"
+                  # Verify the tarball was created
+                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
                   ls -lh "${TARBALL}"
-
-                  # Test that the tarball is valid
-                  echo "Testing tarball integrity..."
-                  gunzip -t "${TARBALL}"
-                  echo "Tarball is valid!"
+                  echo "Export completed!"
               env:
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
                   LATEST: ${{ needs.prepare.outputs.latest_version }}
@@ -196,9 +178,8 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                   name: image-runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}
-                  path: /tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar.gz
+                  path: /tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar
                   retention-days: 1
-                  compression-level: 0 # Image is already compressed
 
             - # Workaround for https://github.com/actions/runner/pull/2477#issuecomment-1501003600
               name: Export metadata
@@ -251,35 +232,24 @@ jobs:
 
             - name: Load image from tarball
               run: |
-                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar.gz"
+                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
 
                   echo "Loading image from tarball: ${TARBALL}"
 
-                  # Verify tarball exists and has reasonable size
+                  # Verify tarball exists
                   if [[ ! -f "${TARBALL}" ]]; then
                       echo "Error: Tarball not found!"
                       ls -la /tmp/images/
                       exit 1
                   fi
 
-                  # Check tarball size (should be > 100MB for a real image)
+                  # Check tarball size
                   SIZE=$(stat -f%z "${TARBALL}" 2>/dev/null || stat -c%s "${TARBALL}")
                   echo "Tarball size: $((SIZE / 1024 / 1024))MB"
 
-                  if [[ $SIZE -lt 10485760 ]]; then  # Less than 10MB
-                      echo "Warning: Tarball seems too small (${SIZE} bytes)"
-                  fi
-
-                  # Test tarball integrity first
-                  echo "Testing tarball integrity..."
-                  if ! gunzip -t "${TARBALL}"; then
-                      echo "Error: Tarball is corrupted!"
-                      exit 1
-                  fi
-
-                  # Load the image
+                  # Load the image (much faster without decompression)
                   echo "Loading image into Docker..."
-                  gunzip -c "${TARBALL}" | docker load
+                  time docker load < "${TARBALL}"
 
                   # Verify images were loaded
                   echo "Images loaded successfully:"
@@ -299,7 +269,7 @@ jobs:
                   echo "🧪 Testing ${ENV_TYPE} environment in image: ${IMAGE_NAME}"
 
                   # Run our test script inside the container
-                  docker run --rm -v "$PWD/test.php:/test.php:ro" "${IMAGE_NAME}" php /test.php "${ENV_TYPE}"
+                  docker run --rm -v "$PWD/test.php:/test.php:ro" -e FORCE_COLOR=1 "${IMAGE_NAME}" php /test.php "${ENV_TYPE}"
               env:
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
                   LATEST: ${{ needs.prepare.outputs.latest_version }}
