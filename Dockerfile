@@ -9,6 +9,7 @@ LABEL org.opencontainers.image.source="https://github.com/prvious/frankenphp"
 ARG WWWGROUP=1000
 ARG WWWUSER=1000
 ARG USER=deploy
+ARG INSTALL_XDEBUG=false
 
 ENV TZ=UTC
 ENV SERVER_NAME=:80
@@ -37,6 +38,9 @@ RUN apt update \
     && apt install -y jpegoptim optipng pngquant gifsicle libavif-bin ffmpeg \
     && npm install -g npm pnpm svgo \
     && install-php-extensions @composer mysqli pdo_mysql pgsql pdo_pgsql bcmath gd imagick imap pcntl zip intl exif ftp xml pdo_sqlsrv sqlsrv sockets \
+    && if [ "$INSTALL_XDEBUG" = "true" ]; then \
+        install-php-extensions xdebug; \
+    fi \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \

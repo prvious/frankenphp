@@ -79,10 +79,11 @@ jobs:
               shell: bash
               run: |
                   set -e
-                  METADATA="$(docker buildx bake --print | jq -c)"
+                  # Print metadata for both prod and dev targets so we capture all expanded runner-* targets
+                  METADATA="$(docker buildx bake --print prod dev | jq -c)"
                   {
                     echo metadata="${METADATA}"
-                    echo variants="$(jq -c '.group.default.targets|map(sub("runner-"; ""))|unique' <<< "${METADATA}")"
+                    echo variants="$(jq -c '[.target | keys[] | select(startswith("runner-")) | sub("^runner-"; "")] | unique' <<< "${METADATA}")"
                     echo platforms="$(jq -c 'first(.target[]) | .platforms' <<< "${METADATA}")"
                   } >> "${GITHUB_OUTPUT}"
               env:
