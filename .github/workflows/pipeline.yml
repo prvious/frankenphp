@@ -288,12 +288,11 @@ jobs:
             fail-fast: false
             matrix:
                 variant: ${{ fromJson(needs.prepare.outputs.variants) }}
-                target: ["runner"]
         steps:
             - name: Download metadata
               uses: actions/download-artifact@v4
               with:
-                  pattern: metadata-${{ matrix.target }}-${{ matrix.variant }}-*
+                  pattern: metadata-runner-${{ matrix.variant }}-*
                   path: /tmp/metadata
                   merge-multiple: true
 
@@ -312,7 +311,7 @@ jobs:
               run: |
                   set -x
                   # shellcheck disable=SC2046,SC2086
-                  docker buildx imagetools create $(jq -cr '.target."${{ matrix.target }}-${{ matrix.variant }}".tags | map("-t " + .) | join(" ")' <<< ${METADATA}) \
+                  docker buildx imagetools create $(jq -cr '.target.runner-${{ matrix.variant }}".tags | map("-t " + .) | join(" ")' <<< ${METADATA}) \
                     $(printf "${IMAGE_NAME}@sha256:%s " *)
               env:
                   METADATA: ${{ needs.prepare.outputs.metadata }}
@@ -320,6 +319,6 @@ jobs:
             - name: Inspect image
               run: |
                   # shellcheck disable=SC2046,SC2086
-                  docker buildx imagetools inspect $(jq -cr '.target."${{ matrix.target }}-${{ matrix.variant }}".tags | first' <<< ${METADATA})
+                  docker buildx imagetools inspect $(jq -cr '.target.runner-${{ matrix.variant }}".tags | first' <<< ${METADATA})
               env:
                   METADATA: ${{ needs.prepare.outputs.metadata }}
