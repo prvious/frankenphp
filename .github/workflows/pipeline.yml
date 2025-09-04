@@ -137,9 +137,18 @@ jobs:
                       ${{ (github.event_name == 'pull_request') && '*.args.NO_COMPRESS=1' || '' }}
                       *.tags=
                       *.platform=${{ matrix.platform }}
-                      *.cache-from=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
-                      *.cache-from=type=gha,scope=refs/heads/main-runner-${{ matrix.variant }}-${{ matrix.platform }}
-                      runner-${{ matrix.variant }}.cache-to=type=gha,scope=runner-${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }},ignore-error=true
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-refs/heads/main-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-refs/heads/main
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=${{ matrix.variant }}
+                      *.cache-from=type=gha,scope=base-${{ matrix.platform }}
+                      *.cache-from=type=gha,scope=base
+                      *.cache-to=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }},mode=max,ignore-error=true
+                      *.cache-to=type=gha,scope=${{ matrix.variant }}-${{ github.ref }},mode=max,ignore-error=true
+                      *.cache-to=type=gha,scope=base-${{ matrix.platform }},mode=max,ignore-error=true
+                      *.cache-to=type=gha,scope=base,mode=max,ignore-error=true
                       ${{ fromJson(needs.prepare.outputs.push) && format('*.output=type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE_NAME) || '' }}
               env:
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
@@ -147,18 +156,41 @@ jobs:
 
             - name: Export image as tarball
               run: |
+                  # List all available images first
+                  echo "Available images:"
+                  docker images
+
                   # Get the built image name from bake metadata
                   IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
-                  echo "Exporting image: ${IMAGE_NAME}"
+                  echo "Target image name: ${IMAGE_NAME}"
+
+                  # Verify the image exists locally
+                  if ! docker image inspect "${IMAGE_NAME}" > /dev/null 2>&1; then
+                      echo "Error: Image ${IMAGE_NAME} not found locally!"
+                      echo "Available images:"
+                      docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}"
+                      exit 1
+                  fi
+
+                  echo "Image found, exporting..."
 
                   # Create directory for image export
                   mkdir -p /tmp/images
 
                   # Export the image as a tarball
-                  docker save "${IMAGE_NAME}" | gzip > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar.gz"
+                  docker save "${IMAGE_NAME}" > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
 
-                  # Verify the tarball was created
-                  ls -lh "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar.gz"
+                  # Compress the tarball
+                  gzip "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
+
+                  # Verify the tarball was created and is valid
+                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar.gz"
+                  ls -lh "${TARBALL}"
+
+                  # Test that the tarball is valid
+                  echo "Testing tarball integrity..."
+                  gunzip -t "${TARBALL}"
+                  echo "Tarball is valid!"
               env:
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
                   LATEST: ${{ needs.prepare.outputs.latest_version }}
@@ -222,10 +254,38 @@ jobs:
 
             - name: Load image from tarball
               run: |
-                  echo "Loading image from tarball..."
-                  gunzip -c "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar.gz" | docker load
+                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar.gz"
 
-                  # List loaded images to verify
+                  echo "Loading image from tarball: ${TARBALL}"
+
+                  # Verify tarball exists and has reasonable size
+                  if [[ ! -f "${TARBALL}" ]]; then
+                      echo "Error: Tarball not found!"
+                      ls -la /tmp/images/
+                      exit 1
+                  fi
+
+                  # Check tarball size (should be > 100MB for a real image)
+                  SIZE=$(stat -f%z "${TARBALL}" 2>/dev/null || stat -c%s "${TARBALL}")
+                  echo "Tarball size: $((SIZE / 1024 / 1024))MB"
+
+                  if [[ $SIZE -lt 10485760 ]]; then  # Less than 10MB
+                      echo "Warning: Tarball seems too small (${SIZE} bytes)"
+                  fi
+
+                  # Test tarball integrity first
+                  echo "Testing tarball integrity..."
+                  if ! gunzip -t "${TARBALL}"; then
+                      echo "Error: Tarball is corrupted!"
+                      exit 1
+                  fi
+
+                  # Load the image
+                  echo "Loading image into Docker..."
+                  gunzip -c "${TARBALL}" | docker load
+
+                  # Verify images were loaded
+                  echo "Images loaded successfully:"
                   docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}"
 
             - name: Test image environment
