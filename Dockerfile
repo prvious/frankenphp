@@ -26,7 +26,7 @@ RUN apt update \
     && apt-get install -y  supervisor git unzip postgresql-client-17 default-mysql-client zsh \
     && sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
     && mkdir -p "${FNM_DIR}" \
-    && curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
+    && curl --retry 5 --retry-delay 5 -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
     && ln -s ${FNM_DIR}/fnm /usr/bin/ && chmod +x /usr/bin/fnm \
     && fnm -V \
     && fnm install --latest \
