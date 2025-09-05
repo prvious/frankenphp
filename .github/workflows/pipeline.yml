@@ -52,27 +52,141 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  PHP_83_LATEST=$(skopeo inspect docker://docker.io/dunglas/frankenphp:php8.3 --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-                  PHP_84_LATEST=$(skopeo inspect docker://docker.io/dunglas/frankenphp:php8.4 --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
+                  # Fetch the latest PHP versions from GitHub releases using gh CLI
+                  echo "🔍 Fetching latest PHP versions from GitHub releases..."
+
+                  # Get all PHP 8.x releases and extract version numbers
+                  ALL_PHP_VERSIONS=$(gh api repos/php/php-src/releases --paginate | jq -r '.[].tag_name' | grep -E '^php-8\.[0-9]+\.[0-9]+$' | sed 's/^php-//' | sort -V)
+
+                  if [[ -z "${ALL_PHP_VERSIONS}" ]]; then
+                      echo "❌ Failed to fetch PHP versions from GitHub"
+                      exit 1
+                  fi
+
+                  echo "📋 All PHP 8.x versions found:"
+                  echo "${ALL_PHP_VERSIONS}"
+
+                  # Extract unique minor versions (8.3, 8.4, etc.) and get the latest patch for each
+                  declare -A LATEST_MINOR_VERSIONS
+
+                  while IFS= read -r version; do
+                      if [[ -n "$version" ]]; then
+                          minor_version=$(echo "$version" | cut -d. -f1,2)
+                          LATEST_MINOR_VERSIONS["$minor_version"]="$version"
+                      fi
+                  done <<< "$ALL_PHP_VERSIONS"
+
+                  # Get the last 2 minor versions
+                  MINOR_VERSIONS_SORTED=($(printf '%s\n' "${!LATEST_MINOR_VERSIONS[@]}" | sort -V | tail -2))
+
+                  if [[ ${#MINOR_VERSIONS_SORTED[@]} -lt 2 ]]; then
+                      echo "❌ Could not find 2 different minor versions"
+                      exit 1
+                  fi
+
+                  PHP_VERSION_1="${MINOR_VERSIONS_SORTED[0]}"
+                  PHP_VERSION_2="${MINOR_VERSIONS_SORTED[1]}"
+
+                  echo "✅ Selected PHP minor versions: ${PHP_VERSION_1} and ${PHP_VERSION_2}"
+                  echo "   Latest patches: ${LATEST_MINOR_VERSIONS[$PHP_VERSION_1]} and ${LATEST_MINOR_VERSIONS[$PHP_VERSION_2]}"
+
+
+                  echo "🔍 Checking FrankenPHP images for PHP ${PHP_VERSION_1} and ${PHP_VERSION_2}..."
+
+                  # Check if FrankenPHP images exist and get their PHP versions
+                  PHP_1_LATEST=""
+                  PHP_2_LATEST=""
+
+                  # For FrankenPHP, we need to check if images exist for these minor versions
+                  # and get the exact PHP version from the image environment
+                  if skopeo inspect "docker://docker.io/dunglas/frankenphp:php${PHP_VERSION_1}" --override-os linux --override-arch amd64 >/dev/null 2>&1; then
+                      PHP_1_LATEST=$(skopeo inspect "docker://docker.io/dunglas/frankenphp:php${PHP_VERSION_1}" --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
+                      echo "✅ Found FrankenPHP image for PHP ${PHP_VERSION_1}: ${PHP_1_LATEST}"
+                  else
+                      echo "⚠️ No FrankenPHP image found for PHP ${PHP_VERSION_1}"
+                  fi
+
+                  if skopeo inspect "docker://docker.io/dunglas/frankenphp:php${PHP_VERSION_2}" --override-os linux --override-arch amd64 >/dev/null 2>&1; then
+                      PHP_2_LATEST=$(skopeo inspect "docker://docker.io/dunglas/frankenphp:php${PHP_VERSION_2}" --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
+                      echo "✅ Found FrankenPHP image for PHP ${PHP_VERSION_2}: ${PHP_2_LATEST}"
+                  else
+                      echo "⚠️ No FrankenPHP image found for PHP ${PHP_VERSION_2}"
+                  fi
+
+                  # Only proceed if we have at least one valid version
+                  if [[ -z "${PHP_1_LATEST}" ]] && [[ -z "${PHP_2_LATEST}" ]]; then
+                      echo "❌ No valid FrankenPHP images found for the latest PHP versions"
+                      exit 1
+                  fi
+
+                  # Build the php_version string (comma-separated)
+                  PHP_VERSION_OUTPUT=""
+                  if [[ -n "${PHP_1_LATEST}" ]]; then
+                      PHP_VERSION_OUTPUT="${PHP_1_LATEST}"
+                  fi
+                  if [[ -n "${PHP_2_LATEST}" ]]; then
+                      if [[ -n "${PHP_VERSION_OUTPUT}" ]]; then
+                          PHP_VERSION_OUTPUT="${PHP_VERSION_OUTPUT},${PHP_2_LATEST}"
+                      else
+                          PHP_VERSION_OUTPUT="${PHP_2_LATEST}"
+                      fi
+                  fi
+
+                  # Determine which is the latest version
+                  LATEST_VERSION="${PHP_2_LATEST:-$PHP_1_LATEST}"
+
                   {
-                    echo php_version="${PHP_83_LATEST},${PHP_84_LATEST}"
-                    echo php83_version="${PHP_83_LATEST//./-}"
-                    echo php84_version="${PHP_84_LATEST//./-}"
-                    echo latest_version="${PHP_84_LATEST}"
+                    echo php_version="${PHP_VERSION_OUTPUT}"
+                    echo latest_version="${LATEST_VERSION}"
                   } >> "${GITHUB_OUTPUT}"
+
+                  echo "📤 Output variables set:"
+                  echo "  php_version=${PHP_VERSION_OUTPUT}"
+                  echo "  latest_version=${LATEST_VERSION}"
+
                   # Check if the Docker images must be rebuilt
                   if [[ "${GITHUB_EVENT_NAME}" != "schedule"  ]]; then
                       echo skip=false >> "${GITHUB_OUTPUT}"
                       exit 0
                   fi
-                  FRANKENPHP_83_LATEST=$(skopeo inspect docker://ghcr.io/prvious/frankenphp:php8.3 --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-                  FRANKENPHP_84_LATEST=$(skopeo inspect docker://ghcr.io/prvious/frankenphp:php8.4 --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-                  if [[ "${FRANKENPHP_83_LATEST}" == "${PHP_83_LATEST}" ]] && [[ "${FRANKENPHP_84_LATEST}" == "${PHP_84_LATEST}" ]]; then
-                      echo skip=true >> "${GITHUB_OUTPUT}"
-                      exit 0
+
+                  # For scheduled runs, check if our images are up to date
+                  echo "🔍 Checking if our FrankenPHP images need rebuilding..."
+                  NEED_REBUILD=false
+
+                  if [[ -n "${PHP_1_LATEST}" ]]; then
+                      if skopeo inspect "docker://ghcr.io/prvious/frankenphp:php${PHP_VERSION_1}" --override-os linux --override-arch amd64 >/dev/null 2>&1; then
+                          FRANKENPHP_1_LATEST=$(skopeo inspect "docker://ghcr.io/prvious/frankenphp:php${PHP_VERSION_1}" --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
+                          if [[ "${FRANKENPHP_1_LATEST}" != "${PHP_1_LATEST}" ]]; then
+                              echo "🔄 PHP ${PHP_VERSION_1} needs rebuild: ${FRANKENPHP_1_LATEST} -> ${PHP_1_LATEST}"
+                              NEED_REBUILD=true
+                          fi
+                      else
+                          echo "🆕 PHP ${PHP_VERSION_1} image doesn't exist, needs build"
+                          NEED_REBUILD=true
+                      fi
                   fi
 
-                  echo skip=false >> "${GITHUB_OUTPUT}"
+                  if [[ -n "${PHP_2_LATEST}" ]]; then
+                      if skopeo inspect "docker://ghcr.io/prvious/frankenphp:php${PHP_VERSION_2}" --override-os linux --override-arch amd64 >/dev/null 2>&1; then
+                          FRANKENPHP_2_LATEST=$(skopeo inspect "docker://ghcr.io/prvious/frankenphp:php${PHP_VERSION_2}" --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
+                          if [[ "${FRANKENPHP_2_LATEST}" != "${PHP_2_LATEST}" ]]; then
+                              echo "🔄 PHP ${PHP_VERSION_2} needs rebuild: ${FRANKENPHP_2_LATEST} -> ${PHP_2_LATEST}"
+                              NEED_REBUILD=true
+                          fi
+                      else
+                          echo "🆕 PHP ${PHP_VERSION_2} image doesn't exist, needs build"
+                          NEED_REBUILD=true
+                      fi
+                  fi
+
+                  if [[ "${NEED_REBUILD}" == "true" ]]; then
+                      echo skip=false >> "${GITHUB_OUTPUT}"
+                      echo "🚀 Images need rebuilding"
+                  else
+                      echo skip=true >> "${GITHUB_OUTPUT}"
+                      echo "✅ All images are up to date"
+                  fi
 
             - uses: actions/checkout@v4
               if: ${{ !fromJson(steps.check.outputs.skip) }}
