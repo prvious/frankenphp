@@ -176,6 +176,10 @@ jobs:
 
                   echo "Finding image by ID (tags are removed by bake config)..."
 
+                  docker images --format "{{.ID}} {{.CreatedAt}} {{.Repository}} {{.Tag}}"
+
+                  echo -e "\n"
+
                   # Get the most recent image that's not buildkit
                   IMAGE_TO_EXPORT=$(docker images --format "{{.ID}} {{.CreatedAt}}" | grep -v "moby/buildkit" | head -1 | cut -d' ' -f1)
 
