@@ -170,7 +170,7 @@ jobs:
                   name: image-runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}
                   path: /tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar
                   if-no-files-found: error
-                  compression-level: 0
+                  compression-level: 9
                   retention-days: 1
 
             - # Workaround for https://github.com/actions/runner/pull/2477#issuecomment-1501003600
