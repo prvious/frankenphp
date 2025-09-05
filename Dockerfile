@@ -61,7 +61,7 @@ RUN apt-get update \
 	&& mkdir -p -m 755 /etc/apt/sources.list.d \
 	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
     && apt-get update \
-    && apt-get install -y htop nano gh fzf zsh-autosuggestions zsh-syntax-highlighting zsh fontconfig \
+    && apt-get install -y htop nano gh zsh-autosuggestions zsh-syntax-highlighting zsh fontconfig \
     && curl -sS https://starship.rs/install.sh | sh -s -- --yes \
     &&  mkdir -p /etc/apt/keyrings \
     && wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | gpg --dearmor -o /etc/apt/keyrings/gierens.gpg \
@@ -84,12 +84,14 @@ USER ${USER}
     
     # Install Oh My Zsh first, then custom plugins
     RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended \
-    && git clone https://github.com/zsh-users/zsh-autosuggestions.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/zsh-autosuggestions \
-    && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting \
-    && git clone https://github.com/zdharma-continuum/fast-syntax-highlighting.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/fast-syntax-highlighting \
+    && git clone --depth 1 https://github.com/junegunn/fzf.git /home/${USER}/.fzf \
+    && git clone --depth 1 https://github.com/zsh-users/zsh-autosuggestions.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/zsh-autosuggestions \
+    && git clone --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting \
+    && git clone --depth 1 https://github.com/zdharma-continuum/fast-syntax-highlighting.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/fast-syntax-highlighting \
     && git clone --depth 1 -- https://github.com/marlonrichert/zsh-autocomplete.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/zsh-autocomplete \
-    && git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/fzf-tab \
-    && curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash
+    && git clone --depth 1 https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/fzf-tab \
+    && curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash \
+    && /home/${USER}/.fzf/install
 
 # Switch back to root for final setup
 USER root

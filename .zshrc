@@ -30,6 +30,12 @@ plugins=(git zsh-autosuggestions zsh-syntax-highlighting fast-syntax-highlightin
 
 source $ZSH/oh-my-zsh.sh
 
+# Source base bashrc for aliases
+if [ -f $HOME/.bash_aliases ]; then
+    . $HOME/.bash_aliases
+fi
+
+
 # Keybindings
 bindkey -e
 bindkey ';5A' history-search-backward
