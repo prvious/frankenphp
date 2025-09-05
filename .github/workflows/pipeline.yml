@@ -176,18 +176,27 @@ jobs:
 
                   echo "Finding image by ID (tags are removed by bake config)..."
 
+                  echo "All images with full info:"
                   docker images --format "{{.ID}} {{.CreatedAt}} {{.Repository}} {{.Tag}}"
 
-                  echo -e "\n"
+                  echo -e "\nFiltering out buildkit images..."
 
-                  # Get the most recent image that's not buildkit
-                  IMAGE_TO_EXPORT=$(docker images --format "{{.ID}} {{.CreatedAt}}" | grep -v "moby/buildkit" | head -1 | cut -d' ' -f1)
+                  # Get the most recent image that's not buildkit (include repository in format for filtering)
+                  IMAGE_TO_EXPORT=$(docker images --format "{{.ID}} {{.CreatedAt}} {{.Repository}}" | grep -v "moby/buildkit" | head -1 | cut -d' ' -f1)
 
                   if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
-                    echo "❌ Error: No built image found at all!"
-                    docker images --all
-                    exit 1
+                      echo "❌ Error: No non-buildkit image found!"
+                      echo "Available images:"
+                      docker images --format "{{.Repository}}:{{.Tag}} ({{.ID}})"
+                      exit 1
                   fi
+
+                  echo "✅ Selected image ID: ${IMAGE_TO_EXPORT}"
+
+                  # Show what image we actually selected
+                  echo "Selected image details:"
+                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | head -1  # header
+                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | grep "${IMAGE_TO_EXPORT}"
 
                   echo "Found built image with ID: ${IMAGE_TO_EXPORT}"
                   # Tag it with expected name for consistency in test job
