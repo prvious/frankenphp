@@ -166,27 +166,24 @@ jobs:
                   # Get the expected image name from bake metadata
                   EXPECTED_IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
 
-                  # Get the image ID from build metadata
-                  BUILD_IMAGE_ID=$(echo '${{ steps.build.outputs.metadata }}' | jq -r '."runner-${{ matrix.variant }}"."containerimage.digest"' 2>/dev/null || echo "")
+                  # Get the image digest from build metadata
+                  BUILD_IMAGE_DIGEST=$(echo '${{ steps.build.outputs.metadata }}' | jq -r '.\"runner-${{ matrix.variant }}\".\"containerimage.digest\"' 2>/dev/null || echo "")
 
-                  if [[ -z "${BUILD_IMAGE_ID}" || "${BUILD_IMAGE_ID}" == "null" ]]; then
-                      echo "❌ Error: No image ID found in build metadata!"
-                      echo "Build metadata available:"
-                      echo '${{ steps.build.outputs.metadata }}' | jq .
+                  if [[ -z "${BUILD_IMAGE_DIGEST}" || "${BUILD_IMAGE_DIGEST}" == "null" ]]; then
+                      echo "❌ Error: No image digest found in build metadata!"
+                      echo "Available metadata keys:"
+                      echo '${{ steps.build.outputs.metadata }}' | jq '.\"runner-${{ matrix.variant }}\" | keys'
                       exit 1
                   fi
 
-                  echo "Found image ID: ${BUILD_IMAGE_ID}"
+                  echo "Found image digest: ${BUILD_IMAGE_DIGEST}"
 
-                  IMAGE_ID_HASH="${BUILD_IMAGE_ID#sha256:}"
-                  echo "Looking for image hash: ${IMAGE_ID_HASH}"
-                  echo "Searching for pattern: ^${IMAGE_ID_HASH:0:12}"
-                  
-                  echo "Available image IDs:"
-                  docker images --all --format "{{.ID}}"
-                  
-                  IMAGE_TO_EXPORT=$(docker images --all --format "{{.ID}}" | grep "^${IMAGE_ID_HASH:0:12}" | head -1)
-                  echo "Grep result: '${IMAGE_TO_EXPORT}'"
+                  echo "Available images with digests:"
+                  docker images --all --digests
+
+                  # Find image by digest
+                  IMAGE_TO_EXPORT=$(docker images --all --digests --format "{{.ID}} {{.Digest}}" | grep "${BUILD_IMAGE_DIGEST}" | cut -d' ' -f1)
+                  echo "Found image ID: ${IMAGE_TO_EXPORT}"
 
                   if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
                       echo "❌ Error: No image found!"
