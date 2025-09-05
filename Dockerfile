@@ -61,10 +61,40 @@ RUN apt-get update \
 	&& mkdir -p -m 755 /etc/apt/sources.list.d \
 	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
     && apt-get update \
-    && apt-get install -y htop nano gh \
+    && apt-get install -y htop nano gh fzf zsh-autosuggestions zsh-syntax-highlighting zsh fontconfig \
+    && curl -sS https://starship.rs/install.sh | sh -s -- --yes \
+    &&  mkdir -p /etc/apt/keyrings \
+    && wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | gpg --dearmor -o /etc/apt/keyrings/gierens.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" | tee /etc/apt/sources.list.d/gierens.list \
+    && chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list \
+    && apt update \
+    && apt install -y eza \
+    && curl -fsSL https://opencode.ai/install | bash \
+    && mkdir -p /usr/share/fonts/nerd-fonts \
+    && wget -q https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip -O /tmp/JetBrainsMono.zip \
+    && unzip /tmp/JetBrainsMono.zip -d /usr/share/fonts/nerd-fonts/JetBrainsMono \
+    && rm /tmp/JetBrainsMono.zip \
+    && fc-cache -fv \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+    # Switch to the deploy user to install Oh My Zsh and plugins
+USER ${USER}
+    
+    # Install Oh My Zsh first, then custom plugins
+    RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended \
+    && git clone https://github.com/zsh-users/zsh-autosuggestions.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/zsh-autosuggestions \
+    && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting \
+    && git clone https://github.com/zdharma-continuum/fast-syntax-highlighting.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/fast-syntax-highlighting \
+    && git clone --depth 1 -- https://github.com/marlonrichert/zsh-autocomplete.git ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/zsh-autocomplete \
+    && git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-/home/$USER/.oh-my-zsh/custom}/plugins/fzf-tab \
+    && curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash
+
+# Switch back to root for final setup
+USER root
+COPY  --chown=${USER}:${USER} ./.zshrc /home/${USER}/.zshrc
+USER ${USER}
 
 WORKDIR /app
 USER ${USER}
@@ -73,6 +103,8 @@ USER ${USER}
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
 FROM base AS prod
+
+RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
 WORKDIR /app
 USER ${USER}

@@ -1,0 +1,28 @@
+# Git files
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+*.tar.gz
+*.zip
+*.rar
+
+# Temporary files
+tmp/
+temp/

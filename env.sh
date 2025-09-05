@@ -3,6 +3,7 @@ export XDG_DATA_HOME=$HOME/.data
 export XDG_CACHE_HOME=$HOME/.cache
 export XDG_STATE_HOME=$HOME/.state
 export PNPM_STORE_PATH=${XDG_DATA_HOME}/pnpm-store
+export ZSH="$HOME/.oh-my-zsh"
 
 mkdir -p $XDG_CONFIG_HOME $XDG_DATA_HOME $XDG_CACHE_HOME $XDG_STATE_HOME $PNPM_STORE_PATH
 
