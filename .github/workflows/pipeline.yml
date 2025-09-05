@@ -133,12 +133,14 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Create tarball directory
+              run: mkdir -p /tmp/images
+
             - name: Build
               id: build
               uses: docker/bake-action@v6
               with:
                   push: ${{ fromJson(needs.prepare.outputs.push) }}
-                  load: true
                   targets: runner-${{ matrix.variant }}
                   set: |
                       ${{ (github.event_name == 'pull_request') && '*.args.NO_COMPRESS=1' || '' }}
@@ -156,50 +158,8 @@ jobs:
                       *.cache-to=type=gha,scope=${{ matrix.variant }}-${{ github.ref }},mode=max,ignore-error=true
                       *.cache-to=type=gha,scope=base-${{ matrix.platform }},mode=max,ignore-error=true
                       *.cache-to=type=gha,scope=base,mode=max,ignore-error=true
+                      *.output=type=docker,dest=/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar
                       ${{ fromJson(needs.prepare.outputs.push) && format('*.output=type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE_NAME) || '' }}
-              env:
-                  PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
-                  LATEST: ${{ needs.prepare.outputs.latest_version }}
-
-            - name: Export image as tarball
-              run: |
-                  # Get the expected image name from bake metadata
-                  EXPECTED_IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
-
-                  # Get the image digest from build metadata
-                  BUILD_IMAGE_DIGEST=$(echo '${{ steps.build.outputs.metadata }}' | jq -r '.\"runner-${{ matrix.variant }}\".\"containerimage.digest\"' 2>/dev/null || echo "")
-
-                  if [[ -z "${BUILD_IMAGE_DIGEST}" || "${BUILD_IMAGE_DIGEST}" == "null" ]]; then
-                      echo "❌ Error: No image digest found in build metadata!"
-                      echo "Available metadata keys:"
-                      echo '${{ steps.build.outputs.metadata }}' | jq '.\"runner-${{ matrix.variant }}\" | keys'
-                      exit 1
-                  fi
-
-                  echo "Found image digest: ${BUILD_IMAGE_DIGEST}"
-
-                  echo "Available images with digests:"
-                  docker images --all --digests
-
-                  # Find image by digest
-                  IMAGE_TO_EXPORT=$(docker images --all --digests --format "{{.ID}} {{.Digest}}" | grep "${BUILD_IMAGE_DIGEST}" | cut -d' ' -f1)
-                  echo "Found image ID: ${IMAGE_TO_EXPORT}"
-
-                  if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
-                      echo "❌ Error: No image found!"
-                      echo "Available images:"
-                      docker images --all --format "{{.Repository}}:{{.Tag}} ({{.ID}})"
-                      exit 1
-                  fi
-
-                  # Tag it with expected name for consistency in test job
-                  docker tag "${IMAGE_TO_EXPORT}" "${EXPECTED_IMAGE_NAME}"
-                  IMAGE_TO_EXPORT="${EXPECTED_IMAGE_NAME}"
-
-                  # Create directory and export the image
-                  mkdir -p /tmp/images
-                  echo "Saving image to tarball..."
-                  docker save "${IMAGE_TO_EXPORT}" > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
               env:
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
                   LATEST: ${{ needs.prepare.outputs.latest_version }}
@@ -209,6 +169,8 @@ jobs:
               with:
                   name: image-runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}
                   path: /tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar
+                  if-no-files-found: error
+                  compression-level: 0
                   retention-days: 1
 
             - # Workaround for https://github.com/actions/runner/pull/2477#issuecomment-1501003600
