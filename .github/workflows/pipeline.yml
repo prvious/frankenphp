@@ -179,7 +179,14 @@ jobs:
                   echo "Found image ID: ${BUILD_IMAGE_ID}"
 
                   IMAGE_ID_HASH="${BUILD_IMAGE_ID#sha256:}"
+                  echo "Looking for image hash: ${IMAGE_ID_HASH}"
+                  echo "Searching for pattern: ^${IMAGE_ID_HASH:0:12}"
+                  
+                  echo "Available image IDs:"
+                  docker images --all --format "{{.ID}}"
+                  
                   IMAGE_TO_EXPORT=$(docker images --all --format "{{.ID}}" | grep "^${IMAGE_ID_HASH:0:12}" | head -1)
+                  echo "Grep result: '${IMAGE_TO_EXPORT}'"
 
                   if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
                       echo "❌ Error: No image found!"
