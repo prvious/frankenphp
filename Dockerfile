@@ -69,7 +69,7 @@ RUN apt-get update \
     && chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list \
     && apt update \
     && apt install -y eza \
-    && curl -fsSL https://opencode.ai/install | bash \
+    && curl --retry 5 --retry-delay 5 -fsSL https://opencode.ai/install | bash \
     && mkdir -p /usr/share/fonts/nerd-fonts \
     && wget -q https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip -O /tmp/JetBrainsMono.zip \
     && unzip /tmp/JetBrainsMono.zip -d /usr/share/fonts/nerd-fonts/JetBrainsMono \
