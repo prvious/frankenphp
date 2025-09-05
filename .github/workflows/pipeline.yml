@@ -163,58 +163,38 @@ jobs:
 
             - name: Export image as tarball
               run: |
-                  # Show all available images for debugging (including untagged)
-                  echo "Available images before export:"
-                  docker images --all
-
-                  echo "Dangling/untagged images:"
-                  docker images --filter "dangling=true"
-
                   # Get the expected image name from bake metadata
                   EXPECTED_IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
-                  echo "Expected image name: ${EXPECTED_IMAGE_NAME}"
 
-                  echo "Finding image by ID (tags are removed by bake config)..."
+                  # Get the image ID from build metadata
+                  BUILD_IMAGE_ID=$(echo '${{ steps.build.outputs.metadata }}' | jq -r '.\"runner-${{ matrix.variant }}\".\"containerimage.config.digest\"' 2>/dev/null || echo "")
 
-                  echo "All images with full info:"
-                  docker images --format "{{.ID}} {{.CreatedAt}} {{.Repository}} {{.Tag}}"
-
-                  echo -e "\nFiltering out buildkit images..."
-
-                  # Get the most recent image that's not buildkit (include repository in format for filtering)
-                  IMAGE_TO_EXPORT=$(docker images --format "{{.ID}} {{.CreatedAt}} {{.Repository}}" | grep -v "moby/buildkit" | head -1 | cut -d' ' -f1)
-
-                  if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
-                      echo "❌ Error: No non-buildkit image found!"
-                      echo "Available images:"
-                      docker images --format "{{.Repository}}:{{.Tag}} ({{.ID}})"
+                  if [[ -z "${BUILD_IMAGE_ID}" || "${BUILD_IMAGE_ID}" == "null" ]]; then
+                      echo "❌ Error: No image ID found in build metadata!"
+                      echo "Build metadata available:"
+                      echo '${{ steps.build.outputs.metadata }}' | jq .
                       exit 1
                   fi
 
-                  echo "✅ Selected image ID: ${IMAGE_TO_EXPORT}"
+                  echo "Found image ID: ${BUILD_IMAGE_ID}"
+                  # Convert sha256:abc... to just the hash part for docker images lookup
+                  IMAGE_ID_HASH="${BUILD_IMAGE_ID#sha256:}"
+                  # Find the image by matching the hash (first 12 chars typically shown)
+                  IMAGE_TO_EXPORT=$(docker images --all --format "{{.ID}}" | grep "^${IMAGE_ID_HASH:0:12}" | head -1)                  if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
+                      echo "❌ Error: No image found!"
+                      echo "Available images:"
+                      docker images --all --format "{{.Repository}}:{{.Tag}} ({{.ID}})"
+                      exit 1
+                  fi
 
-                  # Show what image we actually selected
-                  echo "Selected image details:"
-                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | head -1  # header
-                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | grep "${IMAGE_TO_EXPORT}"
-
-                  echo "Found built image with ID: ${IMAGE_TO_EXPORT}"
                   # Tag it with expected name for consistency in test job
                   docker tag "${IMAGE_TO_EXPORT}" "${EXPECTED_IMAGE_NAME}"
-                  echo "Tagged image as: ${EXPECTED_IMAGE_NAME}"
                   IMAGE_TO_EXPORT="${EXPECTED_IMAGE_NAME}"
 
-                  # Create directory for image export
+                  # Create directory and export the image
                   mkdir -p /tmp/images
-
-                  # Export the image as uncompressed tarball
                   echo "Saving image to tarball..."
-                  time docker save "${IMAGE_TO_EXPORT}" > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
-
-                  # Verify the tarball was created
-                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
-                  ls -lh "${TARBALL}"
-                  echo "Export completed!"
+                  docker save "${IMAGE_TO_EXPORT}" > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
               env:
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
                   LATEST: ${{ needs.prepare.outputs.latest_version }}
