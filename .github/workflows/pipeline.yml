@@ -239,13 +239,28 @@ jobs:
                   SIZE=$(stat -f%z "${TARBALL}" 2>/dev/null || stat -c%s "${TARBALL}")
                   echo "Tarball size: $((SIZE / 1024 / 1024))MB"
 
-                  # Load the image (much faster without decompression)
+                  # Load the image and capture the output
                   echo "Loading image into Docker..."
-                  time docker load < "${TARBALL}"
+                  LOAD_OUTPUT=$(docker load < "${TARBALL}")
+                  echo "${LOAD_OUTPUT}"
 
-                  # Verify images were loaded
-                  echo "Images loaded successfully:"
-                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}"
+                  # Extract the image ID from the load output
+                  LOADED_IMAGE_ID=$(echo "${LOAD_OUTPUT}" | grep "Loaded image ID:" | cut -d' ' -f4)
+                  echo "✅ Loaded image ID: ${LOADED_IMAGE_ID}"
+
+                  if [[ -z "${LOADED_IMAGE_ID}" ]]; then
+                      echo "❌ Error: Could not extract image ID from docker load output!"
+                      echo "Load output was: ${LOAD_OUTPUT}"
+                      exit 1
+                  fi
+
+                  # Export the image ID for use in the test step
+                  echo "LOADED_IMAGE_ID=${LOADED_IMAGE_ID}" >> "$GITHUB_ENV"
+
+                  # Verify image is available
+                  echo "Image loaded successfully:"
+                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | head -1
+                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | grep "${LOADED_IMAGE_ID#sha256:}" || echo "Image ID: ${LOADED_IMAGE_ID}"
 
             - name: Test image environment
               run: |
@@ -255,13 +270,11 @@ jobs:
                   else
                       ENV_TYPE="production"
                   fi
-                    
-                  IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
 
-                  echo "🧪 Testing ${ENV_TYPE} environment in image: ${IMAGE_NAME}"
+                  echo "🧪 Testing ${ENV_TYPE} environment in image: ${LOADED_IMAGE_ID}"
 
-                  # Run our test script inside the container
-                  docker run --rm -v "$PWD/test.php:/test.php:ro" -e FORCE_COLOR=1 "${IMAGE_NAME}" php /test.php "${ENV_TYPE}"
+                  # Run our test script inside the container using the loaded image ID
+                  docker run --rm -v "$PWD/test.php:/test.php:ro" -e FORCE_COLOR=1 "${LOADED_IMAGE_ID}" php /test.php "${ENV_TYPE}"
               env:
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
                   LATEST: ${{ needs.prepare.outputs.latest_version }}
