@@ -13,7 +13,7 @@ const DEV_EXTENSIONS = [
     ...DEV_ONLY_EXTENSIONS,
 ];
 
-const PRODUCTION_BINARIES = ['php', 'composer', 'node', 'npm', 'pnpm', 'jpegoptim', 'optipng', 'pngquant', 'gifsicle', 'ffmpeg', 'svgo', 'avifenc'];
+const PRODUCTION_BINARIES = ['php', 'composer', 'node', 'npm', 'pnpm', 'jpegoptim', 'optipng', 'pngquant', 'gifsicle', 'ffmpeg', 'svgo', 'avifenc', 'zsh'];
 
 const PRODUCTION_ONLY_BINARIES = [];
 
