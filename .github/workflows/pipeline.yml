@@ -177,10 +177,11 @@ jobs:
                   fi
 
                   echo "Found image ID: ${BUILD_IMAGE_ID}"
-                  # Convert sha256:abc... to just the hash part for docker images lookup
+
                   IMAGE_ID_HASH="${BUILD_IMAGE_ID#sha256:}"
-                  # Find the image by matching the hash (first 12 chars typically shown)
-                  IMAGE_TO_EXPORT=$(docker images --all --format "{{.ID}}" | grep "^${IMAGE_ID_HASH:0:12}" | head -1)                  if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
+                  IMAGE_TO_EXPORT=$(docker images --all --format "{{.ID}}" | grep "^${IMAGE_ID_HASH:0:12}" | head -1)
+
+                  if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
                       echo "❌ Error: No image found!"
                       echo "Available images:"
                       docker images --all --format "{{.Repository}}:{{.Tag}} ({{.ID}})"
