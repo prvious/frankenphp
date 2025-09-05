@@ -134,7 +134,7 @@ jobs:
                   targets: runner-${{ matrix.variant }}
                   set: |
                       ${{ (github.event_name == 'pull_request') && '*.args.NO_COMPRESS=1' || '' }}
-                      ${{ fromJson(needs.prepare.outputs.push) && '*.tags=' || '' }}
+                      *.tags=
                       *.platform=${{ matrix.platform }}
                       *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
                       *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}
@@ -155,16 +155,37 @@ jobs:
 
             - name: Export image as tarball
               run: |
-                  # Get the built image name from bake metadata
-                  IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
-                  echo "Exporting image: ${IMAGE_NAME}"
+                  # Show all available images for debugging
+                  echo "Available images before export:"
+                  docker images
+
+                  # Get the expected image name from bake metadata
+                  EXPECTED_IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
+                  echo "Expected image name: ${EXPECTED_IMAGE_NAME}"
+
+                  echo "Finding image by ID (tags are removed by bake config)..."
+
+                  # Get the most recent image that's not buildkit
+                  IMAGE_TO_EXPORT=$(docker images --format "{{.ID}} {{.CreatedAt}}" | grep -v "moby/buildkit" | head -1 | cut -d' ' -f1)
+
+                  if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
+                      echo "❌ Error: No built image found!"
+                      docker images
+                      exit 1
+                  fi
+
+                  echo "Found built image with ID: ${IMAGE_TO_EXPORT}"
+                  # Tag it with expected name for consistency in test job
+                  docker tag "${IMAGE_TO_EXPORT}" "${EXPECTED_IMAGE_NAME}"
+                  echo "Tagged image as: ${EXPECTED_IMAGE_NAME}"
+                  IMAGE_TO_EXPORT="${EXPECTED_IMAGE_NAME}"
 
                   # Create directory for image export
                   mkdir -p /tmp/images
 
-                  # Export the image as uncompressed tarball (much faster)
+                  # Export the image as uncompressed tarball
                   echo "Saving image to tarball..."
-                  time docker save "${IMAGE_NAME}" > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
+                  time docker save "${IMAGE_TO_EXPORT}" > "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
 
                   # Verify the tarball was created
                   TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
@@ -288,18 +309,19 @@ jobs:
             fail-fast: false
             matrix:
                 variant: ${{ fromJson(needs.prepare.outputs.variants) }}
+                target: ["runner"]
         steps:
             - name: Download metadata
               uses: actions/download-artifact@v4
               with:
-                  pattern: metadata-runner-${{ matrix.variant }}-*
+                  pattern: metadata-${{ matrix.target }}-${{ matrix.variant }}-*
                   path: /tmp/metadata
                   merge-multiple: true
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
 
-            - name: Login to DockerHub
+            - name: Login to ghcr.io
               uses: docker/login-action@v3
               with:
                   registry: ghcr.io
@@ -311,7 +333,7 @@ jobs:
               run: |
                   set -x
                   # shellcheck disable=SC2046,SC2086
-                  docker buildx imagetools create $(jq -cr '.target.runner-${{ matrix.variant }}".tags | map("-t " + .) | join(" ")' <<< ${METADATA}) \
+                  docker buildx imagetools create $(jq -cr '.target."${{ matrix.target }}-${{ matrix.variant }}".tags | map("-t " + .) | join(" ")' <<< ${METADATA}) \
                     $(printf "${IMAGE_NAME}@sha256:%s " *)
               env:
                   METADATA: ${{ needs.prepare.outputs.metadata }}
@@ -319,6 +341,6 @@ jobs:
             - name: Inspect image
               run: |
                   # shellcheck disable=SC2046,SC2086
-                  docker buildx imagetools inspect $(jq -cr '.target.runner-${{ matrix.variant }}".tags | first' <<< ${METADATA})
+                  docker buildx imagetools inspect $(jq -cr '.target."${{ matrix.target }}-${{ matrix.variant }}".tags | first' <<< ${METADATA})
               env:
                   METADATA: ${{ needs.prepare.outputs.metadata }}
