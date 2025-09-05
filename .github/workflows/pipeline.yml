@@ -163,9 +163,12 @@ jobs:
 
             - name: Export image as tarball
               run: |
-                  # Show all available images for debugging
+                  # Show all available images for debugging (including untagged)
                   echo "Available images before export:"
-                  docker images
+                  docker images --all
+
+                  echo "Dangling/untagged images:"
+                  docker images --filter "dangling=true"
 
                   # Get the expected image name from bake metadata
                   EXPECTED_IMAGE_NAME=$(docker buildx bake runner-${{ matrix.variant }} --print | jq -r '.target."runner-${{ matrix.variant }}".tags[0]')
@@ -177,9 +180,9 @@ jobs:
                   IMAGE_TO_EXPORT=$(docker images --format "{{.ID}} {{.CreatedAt}}" | grep -v "moby/buildkit" | head -1 | cut -d' ' -f1)
 
                   if [[ -z "${IMAGE_TO_EXPORT}" ]]; then
-                      echo "❌ Error: No built image found!"
-                      docker images
-                      exit 1
+                    echo "❌ Error: No built image found at all!"
+                    docker images --all
+                    exit 1
                   fi
 
                   echo "Found built image with ID: ${IMAGE_TO_EXPORT}"
