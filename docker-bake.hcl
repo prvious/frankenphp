@@ -53,11 +53,11 @@ group "dev" {
 }
 
 group "prod" {
-    targets = [for pv in split(",", replace(PHP_VERSION, " ", "")) : "runner-php-${replace(pv, ".", "-")}-bookworm"]
+    targets = [for pv in split(",", replace(PHP_VERSION, " ", "")) : "runner-php-${replace(pv, ".", "-")}-bookworm-production"]
 }
 
 target "default" {
-    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}${variant == "dev" ? "-dev" : ""}"
+    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}${variant == "dev" ? "-dev" : "-production"}"
     matrix = {
         php-version = split(",", replace(PHP_VERSION, " ", ""))
         os = ["bookworm"]
@@ -78,6 +78,7 @@ target "default" {
     
     tags = distinct(flatten(
         variant == "dev" ? 
+        # Dev variant: add -dev suffix to all tags
         [for pv in php_version(php-version) : flatten([
             [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"],
             [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"]]
