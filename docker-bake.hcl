@@ -78,10 +78,12 @@ target "default" {
     
     tags = distinct(flatten(
         variant == "dev" ? 
+        # Dev variant: add -dev suffix to all tags
         [for pv in php_version(php-version) : flatten([
             [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"],
             [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"]]
         ])] :
+        # Prod variant: use tags as-is  
         [for pv in php_version(php-version) : flatten([
             tag(pv),
             [for v in semver(VERSION) : tag(pv)]

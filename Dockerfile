@@ -106,7 +106,12 @@ USER ${USER}
     
 FROM base AS prod
 
-RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    && echo "🔍 Validating production image does not contain development extensions..." \
+    && if php -m | grep -i xdebug; then \
+        echo "❌ ERROR: xdebug extension found in production image!" && exit 1; \
+       fi \
+    && echo "✅ Production image validation passed: no development extensions found"
 
 WORKDIR /app
 USER ${USER}
