@@ -53,11 +53,14 @@ group "dev" {
 }
 
 group "prod" {
-    targets = [for pv in split(",", replace(PHP_VERSION, " ", "")) : "runner-php-${replace(pv, ".", "-")}-bookworm"]
+    targets = [for pv in split(",", replace(PHP_VERSION, " ", "")) : "runner-php-${replace(pv, ".", "-")}-bookworm-production"]
 }
 
 target "default" {
-    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}${variant == "dev" ? "-dev" : ""}"
+    # Target names: append -production to prod variants to prevent CI/CD metadata conflicts
+    # Pattern matching issue: "bookworm-*" would match both "bookworm-dev" and "bookworm" 
+    # Solution: "bookworm-production-*" vs "bookworm-dev-*" are unambiguous
+    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}${variant == "dev" ? "-dev" : "-production"}"
     matrix = {
         php-version = split(",", replace(PHP_VERSION, " ", ""))
         os = ["bookworm"]
@@ -83,7 +86,7 @@ target "default" {
             [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"],
             [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"]]
         ])] :
-        # Prod variant: use tags as-is  
+        # Prod variant: use tags as-is (no -production suffix in final tags)
         [for pv in php_version(php-version) : flatten([
             tag(pv),
             [for v in semver(VERSION) : tag(pv)]
