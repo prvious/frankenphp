@@ -1,6 +1,8 @@
 ARG VERSION
 FROM dunglas/frankenphp:php${VERSION} AS base
 
+SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
+
 LABEL maintainer="Clovis Muneza"
 LABEL org.opencontainers.image.source="https://github.com/prvious/frankenphp"
 
@@ -11,7 +13,7 @@ ARG USER=deploy
 ENV TZ=UTC
 ENV SERVER_NAME=:80
 ENV FNM_DIR=/usr/local/fnm
-ENV PATH=${FNM_DIR}/aliases/default/bin:$PATH
+ENV PATH=${FNM_DIR}/aliases/latest/bin:$PATH
 
 COPY ./env.sh /etc/profile.d/env.sh
 
@@ -23,9 +25,11 @@ RUN apk add --no-cache bash curl wget gnupg supervisor git unzip postgresql-clie
     && fnm -V \
     && fnm install --latest \
     && echo 'eval "$(fnm env --use-on-cd --shell bash)"' >> /etc/profile.d/fnm.sh \
-    && echo 'source /etc/profile.d/env.sh' >> /etc/bashrc \
+    && echo 'source /etc/profile.d/env.sh' >> /etc/bash.bashrc \
+    && export PATH="${FNM_DIR}/aliases/latest/bin:${PATH}" \
     && eval "$(fnm env --use-on-cd --shell bash)" \
     && fnm use latest --install-if-missing \
+    && export PATH="${FNM_DIR}/aliases/latest/bin:${PATH}" \
     && npm install -g npm pnpm \
     && apk add --no-cache jpegoptim optipng pngquant gifsicle libavif ffmpeg \
     && npm install -g npm pnpm svgo \
