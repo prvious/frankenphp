@@ -21,7 +21,7 @@ RUN apk add --no-cache bash curl wget gnupg supervisor git unzip postgresql-clie
 # Set bash as the shell now that it's installed
 SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
 
-RUN apk add --no-cache nodejs npm jpegoptim optipng pngquant gifsicle libavif aom-tools ffmpeg \
+RUN apk add --no-cache nodejs npm jpegoptim optipng pngquant gifsicle libavif libavif-apps ffmpeg \
     && echo 'source /etc/profile.d/env.sh' >> /etc/bash.bashrc \
     && node --version && npm --version \
     && npm install -g npm pnpm svgo \
