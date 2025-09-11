@@ -11,29 +11,19 @@ ARG USER=deploy
 ENV TZ=UTC
 ENV SERVER_NAME=:80
 ENV FNM_DIR=/usr/local/fnm
-ENV PATH=${FNM_DIR}/aliases/latest/bin:$PATH
+ENV PATH=/usr/bin:$PATH
 
 COPY ./env.sh /etc/profile.d/env.sh
 
 RUN apk add --no-cache bash curl wget gnupg supervisor git unzip postgresql-client mysql-client zsh \
-    && sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
-    && mkdir -p "${FNM_DIR}" \
-    && curl --retry 5 --retry-delay 5 -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
-    && ln -s ${FNM_DIR}/fnm /usr/bin/ && chmod +x /usr/bin/fnm \
-    && fnm -V
+    && sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
 # Set bash as the shell now that it's installed
 SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
 
-RUN fnm install --latest \
-    && echo 'eval "$(fnm env --use-on-cd --shell bash)"' >> /etc/profile.d/fnm.sh \
+RUN apk add --no-cache nodejs npm jpegoptim optipng pngquant gifsicle libavif ffmpeg \
     && echo 'source /etc/profile.d/env.sh' >> /etc/bash.bashrc \
-    && export PATH="${FNM_DIR}/aliases/latest/bin:${PATH}" \
-    && eval "$(fnm env --use-on-cd --shell bash)" \
-    && fnm use latest --install-if-missing \
-    && export PATH="${FNM_DIR}/aliases/latest/bin:${PATH}" \
-    && npm install -g npm pnpm \
-    && apk add --no-cache jpegoptim optipng pngquant gifsicle libavif ffmpeg \
+    && node --version && npm --version \
     && npm install -g npm pnpm svgo \
     && install-php-extensions @composer mysqli pdo_mysql pgsql pdo_pgsql bcmath gd imagick imap pcntl zip intl exif ftp xml pdo_sqlsrv sqlsrv sockets \
     && cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini" \
@@ -66,7 +56,9 @@ RUN install-php-extensions xdebug \
         x86_64) EZA_ARCH="x86_64-unknown-linux-musl" ;; \
         aarch64) EZA_ARCH="aarch64-unknown-linux-musl" ;; \
     esac \
-    && wget -qO- "https://github.com/eza-community/eza/releases/latest/download/eza_${EZA_ARCH}.tar.gz" | tar xz -C /usr/local/bin \
+    && (wget -qO /tmp/eza.tar.gz "https://github.com/eza-community/eza/releases/latest/download/eza_${EZA_ARCH}.tar.gz" \
+        && tar -xzf /tmp/eza.tar.gz -C /usr/local/bin \
+        && rm /tmp/eza.tar.gz) || echo "Failed to install eza, continuing without it" \
     && curl --retry 5 --retry-delay 5 -fsSL https://opencode.ai/install | bash \
     && mkdir -p /usr/share/fonts/nerd-fonts \
     && wget -q https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip -O /tmp/JetBrainsMono.zip \
