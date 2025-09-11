@@ -21,12 +21,10 @@ RUN apk add --no-cache bash curl wget gnupg supervisor git unzip postgresql-clie
 # Set bash as the shell now that it's installed
 SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
 
-RUN apk add --no-cache nodejs npm jpegoptim optipng pngquant gifsicle libavif ffmpeg \
+RUN apk add --no-cache nodejs npm jpegoptim optipng pngquant gifsicle libavif aom-tools ffmpeg \
     && echo 'source /etc/profile.d/env.sh' >> /etc/bash.bashrc \
     && node --version && npm --version \
     && npm install -g npm pnpm svgo \
-    && wget -O /usr/local/bin/avifenc https://github.com/kornelski/cavif-rs/releases/latest/download/cavif-alpine \
-    && chmod +x /usr/local/bin/avifenc \
     && install-php-extensions @composer mysqli pdo_mysql pgsql pdo_pgsql bcmath gd imagick imap pcntl zip intl exif ftp xml pdo_sqlsrv sqlsrv sockets \
     && cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini" \
     && addgroup -g $WWWGROUP ${USER} \
