@@ -1,8 +1,6 @@
 ARG VERSION
 FROM dunglas/frankenphp:php${VERSION} AS base
 
-SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
-
 LABEL maintainer="Clovis Muneza"
 LABEL org.opencontainers.image.source="https://github.com/prvious/frankenphp"
 
@@ -22,8 +20,12 @@ RUN apk add --no-cache bash curl wget gnupg supervisor git unzip postgresql-clie
     && mkdir -p "${FNM_DIR}" \
     && curl --retry 5 --retry-delay 5 -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
     && ln -s ${FNM_DIR}/fnm /usr/bin/ && chmod +x /usr/bin/fnm \
-    && fnm -V \
-    && fnm install --latest \
+    && fnm -V
+
+# Set bash as the shell now that it's installed
+SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
+
+RUN fnm install --latest \
     && echo 'eval "$(fnm env --use-on-cd --shell bash)"' >> /etc/profile.d/fnm.sh \
     && echo 'source /etc/profile.d/env.sh' >> /etc/bash.bashrc \
     && export PATH="${FNM_DIR}/aliases/latest/bin:${PATH}" \

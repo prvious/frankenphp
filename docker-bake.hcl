@@ -16,10 +16,10 @@ function "clean_tag" {
 }
 
 function "tag" {
-    params = [php-version]
+    params = [php_version]
     result = [
-       "${IMAGE_NAME}:php${php-version}",
-        php-version == LATEST ? "${IMAGE_NAME}:latest" : ""
+       "${IMAGE_NAME}:php${php_version}",
+        php_version == LATEST ? "${IMAGE_NAME}:latest" : ""
     ]
 }
 
@@ -67,9 +67,9 @@ group "prod" {
 }
 
 target "default" {
-    name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}${variant == "dev" ? "-dev" : "-production"}"
+    name = "${tgt}-php-${replace(php_version, ".", "-")}-${os}${variant == "dev" ? "-dev" : "-production"}"
     matrix = {
-        php-version = split(",", replace(PHP_VERSION, " ", ""))
+        php_version = split(",", replace(PHP_VERSION, " ", ""))
         os = ["bookworm", "alpine"]
         tgt = ["runner"]
         variant = ["prod", "dev"]
@@ -77,7 +77,7 @@ target "default" {
     dockerfile = os == "alpine" ? "alpine.Dockerfile" : "Dockerfile"
     context = "./"
     contexts = {
-        php-base = "docker-image://php:${php-version}-zts-${os}"
+        php-base = "docker-image://php:${php_version}-zts-${os}"
     }
     platforms = [
         "linux/amd64",
@@ -89,24 +89,24 @@ target "default" {
     tags = distinct(flatten(
         variant == "dev" ? 
         # Dev variant: add -dev suffix to all tags
-        [for pv in php_version(php-version) : flatten([
+        [for pv in php_version(php_version) : flatten([
             [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}-dev"],
             [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}-dev"]]
         ])] :
-        [for pv in php_version(php-version) : flatten([
+        [for pv in php_version(php_version) : flatten([
             [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}"],
             [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}"]]
         ])]
     ))
     
     args = {
-        VERSION = "${clean_tag(php-version)}-${os}"
+        VERSION = "${clean_tag(php_version)}-${os}"
     }
     
     labels = {
         "org.opencontainers.image.description" = variant == "dev" ? "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, sqlsrv, Xdebug, and a few other goodies." : "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
         "org.opencontainers.image.created" = "${timestamp()}"
-        "org.opencontainers.image.version" = variant == "dev" ? "${clean_tag(php-version)}-${os}-dev" : "${clean_tag(php-version)}-${os}"
+        "org.opencontainers.image.version" = variant == "dev" ? "${clean_tag(php_version)}-${os}-dev" : "${clean_tag(php_version)}-${os}"
         "org.opencontainers.image.revision" = SHA
     }
 }
