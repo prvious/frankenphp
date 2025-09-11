@@ -15,12 +15,7 @@ ENV PATH=${FNM_DIR}/aliases/default/bin:$PATH
 
 COPY ./env.sh /etc/profile.d/env.sh
 
-# Install bash first, then set shell
-RUN apk update && apk add --no-cache bash
-
-SHELL [ "/bin/bash", "-l", "-exo", "pipefail", "-c" ]
-
-RUN apk add --no-cache curl wget gnupg supervisor git unzip postgresql-client mysql-client zsh \
+RUN apk add --no-cache bash curl wget gnupg supervisor git unzip postgresql-client mysql-client zsh \
     && sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
     && mkdir -p "${FNM_DIR}" \
     && curl --retry 5 --retry-delay 5 -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
@@ -28,7 +23,7 @@ RUN apk add --no-cache curl wget gnupg supervisor git unzip postgresql-client my
     && fnm -V \
     && fnm install --latest \
     && echo 'eval "$(fnm env --use-on-cd --shell bash)"' >> /etc/profile.d/fnm.sh \
-    && echo 'source /etc/profile.d/env.sh' >> /etc/bash.bashrc \
+    && echo 'source /etc/profile.d/env.sh' >> /etc/bashrc \
     && eval "$(fnm env --use-on-cd --shell bash)" \
     && fnm use latest --install-if-missing \
     && npm install -g npm pnpm \
@@ -46,8 +41,7 @@ RUN apk add --no-cache curl wget gnupg supervisor git unzip postgresql-client my
 
 FROM base AS dev
 
-RUN apk update \
-    && install-php-extensions xdebug \
+RUN install-php-extensions xdebug \
     && apk add --no-cache wget tar gzip \
     && ARCH=$(uname -m) \
     && case $ARCH in \
