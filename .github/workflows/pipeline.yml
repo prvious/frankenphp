@@ -9,6 +9,7 @@ on:
             - main
         paths:
             - "Dockerfile"
+            - "alpine.Dockerfile"
             - "docker-bake.hcl"
             - "env.sh"
             - "test.php"
@@ -19,6 +20,7 @@ on:
             - main
         paths:
             - "Dockerfile"
+            - "alpine.Dockerfile"
             - "docker-bake.hcl"
             - "env.sh"
             - "test.php"

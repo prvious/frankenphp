@@ -49,22 +49,32 @@ function "_php_version" {
 }
 
 group "dev" {
-    targets = [for pv in split(",", replace(PHP_VERSION, " ", "")) : "runner-php-${replace(pv, ".", "-")}-bookworm-dev"]
+    targets = flatten([
+        for pv in split(",", replace(PHP_VERSION, " ", "")) : [
+            "runner-php-${replace(pv, ".", "-")}-bookworm-dev",
+            "runner-php-${replace(pv, ".", "-")}-alpine-dev"
+        ]
+    ])
 }
 
 group "prod" {
-    targets = [for pv in split(",", replace(PHP_VERSION, " ", "")) : "runner-php-${replace(pv, ".", "-")}-bookworm-production"]
+    targets = flatten([
+        for pv in split(",", replace(PHP_VERSION, " ", "")) : [
+            "runner-php-${replace(pv, ".", "-")}-bookworm-production",
+            "runner-php-${replace(pv, ".", "-")}-alpine-production"
+        ]
+    ])
 }
 
 target "default" {
     name = "${tgt}-php-${replace(php-version, ".", "-")}-${os}${variant == "dev" ? "-dev" : "-production"}"
     matrix = {
         php-version = split(",", replace(PHP_VERSION, " ", ""))
-        os = ["bookworm"]
+        os = ["bookworm", "alpine"]
         tgt = ["runner"]
         variant = ["prod", "dev"]
     }
-    dockerfile = "Dockerfile"
+    dockerfile = os == "alpine" ? "alpine.Dockerfile" : "Dockerfile"
     context = "./"
     contexts = {
         php-base = "docker-image://php:${php-version}-zts-${os}"
@@ -80,12 +90,12 @@ target "default" {
         variant == "dev" ? 
         # Dev variant: add -dev suffix to all tags
         [for pv in php_version(php-version) : flatten([
-            [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"],
-            [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-dev"]]
+            [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}-dev"],
+            [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}-dev"]]
         ])] :
         [for pv in php_version(php-version) : flatten([
-            tag(pv),
-            [for v in semver(VERSION) : tag(pv)]
+            [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}"],
+            [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}"]]
         ])]
     ))
     
@@ -94,9 +104,9 @@ target "default" {
     }
     
     labels = {
-        "org.opencontainers.image.description" = variant == "dev" ? "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, Xdebug, and a few other goodies." : "FrankenPHP Docker images with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
+        "org.opencontainers.image.description" = variant == "dev" ? "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, sqlsrv, Xdebug, and a few other goodies." : "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
         "org.opencontainers.image.created" = "${timestamp()}"
-        "org.opencontainers.image.version" = variant == "dev" ? "${clean_tag(php-version)}-dev" : "${clean_tag(php-version)}"
+        "org.opencontainers.image.version" = variant == "dev" ? "${clean_tag(php-version)}-${os}-dev" : "${clean_tag(php-version)}-${os}"
         "org.opencontainers.image.revision" = SHA
     }
 }
