@@ -2,25 +2,40 @@ variable "IMAGE_NAME" {
     default = "ghcr.io/prvious/frankenphp"
 }
 
-variable "PHP_VERSION" {}
+variable "PHP_VERSION" {
+    description = "Comma-separated list of PHP versions to build, e.g. '8.1.0,8.2.0,8.3.0'."
+}
 
-variable "SHA" {}
+variable "SHA" {
+    description = "The git commit SHA to use for the build."
+}
 
-variable "VERSION" {}
-
-variable "LATEST" {}
+variable "LATEST" {
+    description = "The latest PHP version to use for tagging the 'latest' tag."
+}
 
 function "clean_tag" {
     params = [tag]
     result = substr(regex_replace(regex_replace(tag, "[^\\w.-]", "-"), "^([^\\w])", "r$0"), 0, 127)
 }
 
+function "stripOS" {
+    params = [tag]
+    result = replace(tag, "-bookworm", "")
+}
+
 function "tag" {
-    params = [php_version]
-    result = [
-       "${IMAGE_NAME}:php${php_version}",
-        php_version == LATEST ? "${IMAGE_NAME}:latest" : ""
-    ]
+    params = [php_version, os, variant, version]
+    result = distinct(flatten([
+        for pv in php_version(php_version) : flatten([
+            // Base tags with OS and variant
+            ["${IMAGE_NAME}:php${pv}-${os}${variant == "dev" ? "-dev" : ""}"],
+            // Latest tags for the LATEST PHP version
+            pv == LATEST ? ["${IMAGE_NAME}:latest-${os}${variant == "dev" ? "-dev" : ""}"] : [],
+            // Semver tags with OS and variant (only if version is not empty and semver returns results)
+            [for v in (semver(version)) : "${IMAGE_NAME}:php${v}-${os}${variant == "dev" ? "-dev" : ""}"],
+        ])
+    ]))
 }
 
 function "semver" {
@@ -35,7 +50,7 @@ function "_semver" {
 
 function "__semver" {
     params = [v]
-    result = v == {} ? [clean_tag(VERSION)] : v.prerelease == null ? [v.major, "${v.major}.${v.minor}", "${v.major}.${v.minor}.${v.patch}"] : ["${v.major}.${v.minor}.${v.patch}-${v.prerelease}"]
+    result = v.prerelease == null ? [v.major, "${v.major}.${v.minor}", "${v.major}.${v.minor}.${v.patch}"] : ["${v.major}.${v.minor}.${v.patch}-${v.prerelease}"]
 }
 
 function "php_version" {
@@ -46,24 +61,6 @@ function "php_version" {
 function "_php_version" {
     params = [v, m]
     result = "${m.major}.${m.minor}" == "8.4" ? [v, "${m.major}.${m.minor}", "${m.major}"] : [v, "${m.major}.${m.minor}"]
-}
-
-group "dev" {
-    targets = flatten([
-        for pv in split(",", replace(PHP_VERSION, " ", "")) : [
-            "runner-php-${replace(pv, ".", "-")}-bookworm-dev",
-            "runner-php-${replace(pv, ".", "-")}-alpine-dev"
-        ]
-    ])
-}
-
-group "prod" {
-    targets = flatten([
-        for pv in split(",", replace(PHP_VERSION, " ", "")) : [
-            "runner-php-${replace(pv, ".", "-")}-bookworm-production",
-            "runner-php-${replace(pv, ".", "-")}-alpine-production"
-        ]
-    ])
 }
 
 target "default" {
@@ -85,19 +82,8 @@ target "default" {
     ]
     
     target = variant
-    
-    tags = distinct(flatten(
-        variant == "dev" ? 
-        # Dev variant: add -dev suffix to all tags
-        [for pv in php_version(php_version) : flatten([
-            [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}-dev"],
-            [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}-dev"]]
-        ])] :
-        [for pv in php_version(php_version) : flatten([
-            [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}"],
-            [for v in semver(VERSION) : [for tag_val in tag(pv) : tag_val == "" ? "" : "${tag_val}-${os}"]]
-        ])]
-    ))
+
+    tags = [for t in tag(php_version, os, variant, clean_tag(php_version)) : stripOS(t)]
     
     args = {
         VERSION = "${clean_tag(php_version)}-${os}"
