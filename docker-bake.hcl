@@ -67,7 +67,7 @@ target "default" {
     name = "${tgt}-php-${replace(php_version, ".", "-")}-${os}${variant == "dev" ? "-dev" : "-production"}"
     matrix = {
         php_version = split(",", replace(PHP_VERSION, " ", ""))
-        os = ["bookworm", "alpine"]
+        os = ["bookworm", "alpine", "trixie"]
         tgt = ["runner"]
         variant = ["prod", "dev"]
     }
