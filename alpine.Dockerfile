@@ -96,5 +96,9 @@ FROM base AS prod
 
 RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
+USER root
+COPY --chown=${USER}:${USER} ./.zshrc.prod /home/${USER}/.zshrc
+USER ${USER}
+
 WORKDIR /app
 USER ${USER}
