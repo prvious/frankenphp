@@ -5,7 +5,7 @@ export ZSH="$HOME/.oh-my-zsh"
 export FZF_HOME="${HOME}/.fzf"
 
 # Path configuration
-export PATH="$HOME/.local/bin:/usr/local/bin:$HOME/.cargo/bin:$HOME/.opencode/bin:$FZF_HOME:$PATH"
+export PATH="$HOME/.local/bin:/usr/local/bin:$HOME/.cargo/bin:$HOME/.opencode/bin:$FZF_HOME/bin:$PATH"
 
 # Load completions
 fpath=($HOME/.eza/completions/zsh $fpath)
