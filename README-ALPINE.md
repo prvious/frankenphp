@@ -57,12 +57,13 @@ Both Alpine and Bookworm variants provide the same functionality:
 - ✅ Node.js via FNM (Fast Node Manager)
 - ✅ Supervisor process manager
 - ✅ PostgreSQL and MySQL clients
+- ✅ Zsh with Oh My Zsh (basic configuration)
 
 ### Development Features (in -dev variants)
 - ✅ Xdebug PHP extension
 - ✅ GitHub CLI (`gh`)
-- ✅ Developer tools (htop, nano, starship prompt)
-- ✅ Zsh with Oh My Zsh and plugins
+- ✅ Developer tools (htop, nano, starship prompt, eza, fzf)
+- ✅ Enhanced Zsh configuration with additional plugins
 - ✅ Custom aliases and environment
 
 ### Image Optimization Tools
@@ -131,6 +132,8 @@ This generates 16 total image variants (2 PHP × 2 OS × 2 types × 2 platforms)
 - `alpine.Dockerfile` - Alpine variant  
 - `docker-bake.hcl` - Build configuration
 - `env.sh` - Shared environment setup
+- `.zshrc` - Zsh configuration for development images
+- `.zshrc.prod` - Zsh configuration for production images
 - `test.php` - Functionality testing script
 
 ### Adding New Features
