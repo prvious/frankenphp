@@ -7,24 +7,10 @@ on:
     pull_request:
         branches:
             - main
-        paths:
-            - "Dockerfile"
-            - "alpine.Dockerfile"
-            - "docker-bake.hcl"
-            - "env.sh"
-            - "test.php"
-            - ".github/workflows/pipeline.yml"
 
     push:
         branches:
             - main
-        paths:
-            - "Dockerfile"
-            - "alpine.Dockerfile"
-            - "docker-bake.hcl"
-            - "env.sh"
-            - "test.php"
-            - ".github/workflows/pipeline.yml"
 
     schedule:
         - cron: "0 7 * * *"
