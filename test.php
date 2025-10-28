@@ -17,7 +17,7 @@ const PRODUCTION_BINARIES = ['php', 'composer', 'node', 'npm', 'pnpm', 'jpegopti
 
 const PRODUCTION_ONLY_BINARIES = [];
 
-const DEV_ONLY_BINARIES = ['gh', 'htop', 'nano'];
+const DEV_ONLY_BINARIES = ['gh', 'htop', 'nano', 'playwright', 'pnpx'];
 
 const DEV_BINARIES = [
     ...PRODUCTION_BINARIES,

@@ -75,6 +75,9 @@ RUN apt-get update \
     && unzip /tmp/JetBrainsMono.zip -d /usr/share/fonts/nerd-fonts/JetBrainsMono \
     && rm /tmp/JetBrainsMono.zip \
     && fc-cache -fv \
+    && eval "$(fnm env --use-on-cd --shell bash)" \
+    && pnpm install -g playwright \
+    && pnpx playwright install --with-deps \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
