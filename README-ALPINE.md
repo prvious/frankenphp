@@ -60,6 +60,7 @@ Both Alpine and Bookworm variants provide the same functionality:
 
 ### Development Features (in -dev variants)
 - ✅ Xdebug PHP extension
+- ✅ Playwright for browser automation and testing
 - ✅ GitHub CLI (`gh`)
 - ✅ Developer tools (htop, nano, starship prompt)
 - ✅ Zsh with Oh My Zsh and plugins
