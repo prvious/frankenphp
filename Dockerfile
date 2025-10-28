@@ -76,6 +76,7 @@ RUN apt-get update \
     && rm /tmp/JetBrainsMono.zip \
     && fc-cache -fv \
     && eval "$(fnm env --use-on-cd --shell bash)" \
+    && pnpm setup \
     && pnpm install -g playwright \
     && pnpx playwright install --with-deps \
     && apt-get -y autoremove \
