@@ -90,7 +90,7 @@ target "default" {
     }
     
     labels = {
-        "org.opencontainers.image.description" = variant == "dev" ? "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, sqlsrv, Xdebug, and a few other goodies." : "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
+        "org.opencontainers.image.description" = variant == "dev" ? "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, Playwright, sqlsrv, Xdebug, and a few other goodies." : "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
         "org.opencontainers.image.created" = "${timestamp()}"
         "org.opencontainers.image.version" = variant == "dev" ? "${clean_tag(php_version)}-${os}-dev" : "${clean_tag(php_version)}-${os}"
         "org.opencontainers.image.revision" = SHA

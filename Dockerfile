@@ -51,6 +51,9 @@ RUN apt update \
 
 FROM base AS dev
 
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
 RUN apt-get update \
     && install-php-extensions xdebug \
     && (type -p wget >/dev/null || (apt update && apt install wget -y)) \
@@ -75,6 +78,10 @@ RUN apt-get update \
     && unzip /tmp/JetBrainsMono.zip -d /usr/share/fonts/nerd-fonts/JetBrainsMono \
     && rm /tmp/JetBrainsMono.zip \
     && fc-cache -fv \
+    && eval "$(fnm env --use-on-cd --shell bash)" \
+    && mkdir -p -m 777 /pnpm \
+    && pnpm install -g playwright \
+    && pnpx playwright install --with-deps \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

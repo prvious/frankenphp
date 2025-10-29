@@ -37,6 +37,9 @@ RUN apk add --no-cache nodejs npm jpegoptim optipng pngquant gifsicle libavif li
 
 FROM base AS dev
 
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
 RUN install-php-extensions xdebug \
     && apk add --no-cache wget tar gzip \
     && ARCH=$(uname -m) \
@@ -65,6 +68,9 @@ RUN install-php-extensions xdebug \
     && unzip /tmp/JetBrainsMono.zip -d /usr/share/fonts/nerd-fonts/JetBrainsMono \
     && rm /tmp/JetBrainsMono.zip \
     && fc-cache -fv \
+    && mkdir -p -m 777 /pnpm \
+    && pnpm install -g playwright \
+    && pnpx playwright install --with-deps \
     && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
 
     # Switch to the deploy user to install Oh My Zsh and plugins
