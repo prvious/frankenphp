@@ -65,7 +65,7 @@ RUN install-php-extensions xdebug \
     && unzip /tmp/JetBrainsMono.zip -d /usr/share/fonts/nerd-fonts/JetBrainsMono \
     && rm /tmp/JetBrainsMono.zip \
     && fc-cache -fv \
-    && pnpm setup \
+    && source /etc/profile.d/env.sh \
     && pnpm install -g playwright \
     && pnpx playwright install --with-deps \
     && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
