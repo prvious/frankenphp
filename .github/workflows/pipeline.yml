@@ -72,8 +72,8 @@ jobs:
                       exit 1
                   fi
 
-                  PHP_VERSION_1="${MINOR_VERSIONS_SORTED[0]}"
-                  PHP_VERSION_2="${MINOR_VERSIONS_SORTED[1]}"
+                  PHP_VERSION_1="8.3"
+                  PHP_VERSION_2="8.4"
 
                   echo "✅ Selected PHP minor versions: ${PHP_VERSION_1} and ${PHP_VERSION_2}"
                   echo "   Latest patches: ${LATEST_MINOR_VERSIONS[$PHP_VERSION_1]} and ${LATEST_MINOR_VERSIONS[$PHP_VERSION_2]}"
