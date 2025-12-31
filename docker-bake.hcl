@@ -67,11 +67,11 @@ target "default" {
     name = "${tgt}-php-${replace(php_version, ".", "-")}-${os}${variant == "dev" ? "-dev" : "-production"}"
     matrix = {
         php_version = split(",", replace(PHP_VERSION, " ", ""))
-        os = ["bookworm", "alpine"]
+        os = ["bookworm"]
         tgt = ["runner"]
         variant = ["prod", "dev"]
     }
-    dockerfile = os == "alpine" ? "alpine.Dockerfile" : "Dockerfile"
+    dockerfile = "Dockerfile"
     context = "./"
     contexts = {
         php-base = "docker-image://php:${php_version}-zts-${os}"
