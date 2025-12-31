@@ -17,13 +17,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH=${FNM_DIR}/aliases/default/bin:$PATH
 
 COPY ./env.sh /etc/profile.d/env.sh
+COPY ./usr/local/bin/healthcheck-* /usr/local/bin/
 
 RUN apt update \
     && apt-get install -y gnupg lsb-release \
     && echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
     && curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg \
     && apt-get update \
-    && apt-get install -y  supervisor git unzip postgresql-client-17 default-mysql-client zsh \
+    && apt-get install -y  supervisor git unzip postgresql-client-17 default-mysql-client zsh procps \
     && sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
     && mkdir -p "${FNM_DIR}" \
     && curl --retry 5 --retry-delay 5 -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${FNM_DIR}" --skip-shell \
@@ -42,6 +43,7 @@ RUN apt update \
     && groupadd --force -g $WWWGROUP ${USER} \
     && useradd -m --no-user-group -o -g $WWWGROUP -u ${WWWUSER} -s /bin/zsh ${USER} \
     && setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp \
+    && chmod +x /usr/local/bin/healthcheck-* \
     && chown -R ${USER}:${USER} /data/caddy && chown -R ${USER}:${USER} /config/caddy && chown -R ${USER}:${USER} /app \
     && apt-get -y autoremove \
     && apt-get clean \
