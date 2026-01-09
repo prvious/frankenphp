@@ -1,4 +1,4 @@
-. /etc/profile.d/env.sh
+. /etc/profile.d/.env
 
 # Oh My Zsh configuration
 export ZSH="$HOME/.oh-my-zsh"
