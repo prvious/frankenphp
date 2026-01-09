@@ -1,0 +1,54 @@
+. /etc/profile.d/env.sh
+
+# Oh My Zsh configuration
+export ZSH="$HOME/.oh-my-zsh"
+
+# Path configuration
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+
+# Load completions
+autoload -Uz compinit
+if [[ -n ${ZDOTDIR}/.zcompdump(#qN.mh+24) ]]; then
+    compinit;
+else
+    compinit -C;
+fi;
+
+# Basic aliases
+alias ll='ls -la'
+alias la='ls -a'
+
+# Oh My Zsh plugins (minimal set for production)
+plugins=(git)
+
+source $ZSH/oh-my-zsh.sh
+
+# Source base bashrc for aliases
+if [ -f $HOME/.bash_aliases ]; then
+    . $HOME/.bash_aliases
+fi
+
+# Keybindings
+bindkey -e
+bindkey ';5A' history-search-backward
+bindkey ';5B' history-search-forward
+bindkey ";5C" forward-word
+bindkey ";5D" backward-word
+bindkey "^[[3~" delete-char
+
+# History configuration
+HISTSIZE=500
+HISTFILE=~/.zsh_history
+SAVEHIST=$HISTSIZE
+HISTDUP=erase
+setopt appendhistory
+setopt sharehistory
+setopt hist_ignore_space
+setopt hist_ignore_all_dups
+setopt hist_save_no_dups
+setopt hist_ignore_dups
+setopt hist_find_no_dups
+
+# Completion styling
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
+zstyle ':completion:*' menu no

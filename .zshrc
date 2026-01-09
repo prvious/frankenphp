@@ -5,7 +5,7 @@ export ZSH="$HOME/.oh-my-zsh"
 export FZF_HOME="${HOME}/.fzf"
 
 # Path configuration
-export PATH="$HOME/.local/bin:/usr/local/bin:$HOME/.cargo/bin:$HOME/.opencode/bin:$FZF_HOME/bin:$PATH"
+export PATH="$HOME/.local/bin:/usr/local/bin:$HOME/.opencode/bin:$FZF_HOME/bin:$PNPM_HOME:$PATH"
 
 # Load completions
 fpath=($HOME/.eza/completions/zsh $fpath)
@@ -17,10 +17,10 @@ else
 fi;
 
 # Eza aliases
-alias ls='eza --color=always --group-directories-first'
-alias ll='eza -la --color=always --group-directories-first'
-alias la='eza -a --color=always --group-directories-first'
-alias lt='eza -aT --color=always --group-directories-first'
+alias ls='eza --icons --color=always --group-directories-first'
+alias ll='eza --icons -la --color=always --group-directories-first'
+alias la='eza --icons -a --color=always --group-directories-first'
+alias lt='eza --icons -aT --color=always --group-directories-first'
 
 source <(fzf --zsh)
 
@@ -65,18 +65,11 @@ zstyle ':completion:*:git-checkout:*' sort false
 zstyle ':completion:*:descriptions' format '[%d]'
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 zstyle ':completion:*' menu no
-zstyle ':fzf-tab:complete:cd:*' fzf-preview 'eza -1 --color=always $realpath'
-zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'eza -1 --color=always $realpath'
+zstyle ':fzf-tab:complete:cd:*' fzf-preview 'eza -1 --icons --color=always $realpath'
+zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'eza -1 --icons --color=always $realpath'
 zstyle ':fzf-tab:*' fzf-flags --color=fg:1,fg+:2 --bind=tab:accept
 zstyle ':fzf-tab:*' use-fzf-default-opts yes
 zstyle ':fzf-tab:*' switch-group '<' '>'
-
-
-
-# FNM environment (if available)
-if command -v fnm >/dev/null 2>&1; then
-    eval "$(fnm env --use-on-cd --shell zsh)"
-fi
 
 
 # Initialize starship prompt
