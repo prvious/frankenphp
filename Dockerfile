@@ -28,6 +28,7 @@ RUN apt update \
     && sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
     && echo 'source /etc/profile.d/.env' >> /etc/bash.bashrc \
     && curl -fsSL https://get.pnpm.io/install.sh | env PNPM_HOME="${PNPM_HOME}" bash - \
+    && export PATH="${PNPM_HOME}:${PATH}" \
     && pnpm env use --global 24 \
     && npm install -g npm \
     && apt install -y jpegoptim optipng pngquant gifsicle libavif-bin ffmpeg \
