@@ -40,6 +40,8 @@ RUN apt update \
     && useradd -m --no-user-group -o -g $WWWGROUP -u ${WWWUSER} -s /bin/zsh ${USER} \
     && setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp \
     && chmod +x /usr/local/bin/* \
+    && mkdir -p /home/${USER}/.config/psysh \
+    && chown -R ${USER}:${USER} /home/${USER}/.config \
     && chown -R ${USER}:${USER} /data/caddy && chown -R ${USER}:${USER} /config/caddy && chown -R ${USER}:${USER} /app \
     && apt-get -y autoremove \
     && apt-get clean \
