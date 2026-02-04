@@ -76,7 +76,8 @@ COPY . /app
 RUN composer install --no-dev --optimize-autoloader \
     && pnpm install --prod && pnpm run build
 
-EXPOSE 80 443
+EXPOSE 80
+EXPOSE 443
 CMD ["frankenphp", "run"]
 ```
 
