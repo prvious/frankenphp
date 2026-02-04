@@ -1,57 +1,71 @@
-# FrankenPHP Docker Images
+<div align="center">
 
-Production-ready and development-optimized Docker images built on top of FrankenPHP, engineered for modern PHP applications with comprehensive tooling, multi-architecture support, and performance-focused configuration.
+# 🧟 FrankenPHP Docker Images
 
-## Overview
+**Production-ready containers that don't suck.**
 
-This repository provides custom FrankenPHP Docker images with batteries included for PHP development and deployment. Built on the official FrankenPHP base images, these containers come pre-configured with essential PHP extensions, database clients, Node.js tooling, image optimization utilities, and developer productivity tools.
+[![Docker](https://img.shields.io/badge/Docker-Multi--Arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/prvious/frankenphp)
+[![PHP](https://img.shields.io/badge/PHP-8.3%20|%208.4-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
+[![License](https://img.shields.io/badge/License-Open%20Source-green?style=flat-square)](LICENSE)
 
-FrankenPHP combines the power of Caddy web server with PHP, offering HTTP/3, automatic HTTPS, and native PHP execution in a single binary. These images extend that foundation with everything you need for Laravel, Symfony, and modern PHP applications.
+*FrankenPHP meets Laravel. HTTP/3 meets productivity. One image to rule them all.*
 
-## Key Features
+</div>
 
-### Production-Ready
-- **Multi-Architecture Support**: Native builds for AMD64 and ARM64 architectures
-- **Optimized PHP Configuration**: Production-tuned PHP settings out of the box
-- **Comprehensive Extensions**: Database drivers (MySQL, PostgreSQL, SQL Server), image processing, caching, and more
-- **Zero Downtime**: Built-in health check utilities for load balancers and orchestration platforms
-- **Minimal Attack Surface**: Production images exclude development tools and debugging extensions
+---
 
-### Development-Optimized
-- **Xdebug Integration**: Pre-configured for step debugging and profiling
-- **Enhanced Shell Experience**: Zsh with Zinit, Starship prompt, and intelligent completions
-- **Modern CLI Tools**: GitHub CLI, eza, fzf, zoxide, htop for enhanced productivity
-- **Fast Package Management**: pnpm with optimized store configuration
-- **Interactive Development**: Pre-installed development utilities and code quality tools
+## ⚡ What's This?
 
-### Full-Stack Capabilities
-- **Node.js Ecosystem**: Node 24 with npm and pnpm for modern frontend development
-- **Image Optimization**: jpegoptim, optipng, pngquant, gifsicle, AVIF support, and FFmpeg
-- **Database Clients**: PostgreSQL 17 and MySQL clients for direct database access
-- **Supervisor Integration**: Process management for running multiple services
-- **Laravel-Optimized**: Built-in aliases and tools for Laravel development workflows
+Custom FrankenPHP images that combine the raw power of Caddy + PHP with everything you actually need: database drivers, Node.js tooling, image optimization, and developer happiness. 
 
-## Available Images
+**No bloat. No BS. Just working containers.**
 
-All images are available on GitHub Container Registry and support both `linux/amd64` and `linux/arm64` platforms.
+Built on FrankenPHP (Caddy + PHP in one binary), these images give you HTTP/3, automatic HTTPS, and native PHP execution—then add batteries for Laravel, Symfony, and modern PHP apps.
 
-### Production Images
+## 🎯 Why Use This?
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 🚀 Production Ready
+Multi-arch builds (AMD64/ARM64), optimized PHP config, health checks for zero-downtime deployments. Ships without dev tools—lean and mean.
+
+</td>
+<td width="33%" valign="top">
+
+### 🛠️ Dev Optimized  
+Xdebug ready, Zsh + Starship, modern CLI tools (gh, fzf, eza). Your local environment that actually feels good to use.
+
+</td>
+<td width="33%" valign="top">
+
+### 📦 Full Stack
+Node 24, pnpm, image optimization suite (jpegoptim, AVIF, FFmpeg), PostgreSQL 17 & MySQL clients. Everything in one image.
+
+</td>
+</tr>
+</table>
+
+## 📦 Available Images
+
+> **All images:** Multi-arch (AMD64/ARM64) · Available on [GHCR](https://github.com/prvious/frankenphp/pkgs/container/frankenphp)
+
+```bash
+# Production Images (lean & optimized)
+ghcr.io/prvious/frankenphp:latest          # PHP 8.4
+ghcr.io/prvious/frankenphp:php8.4          # PHP 8.4
+ghcr.io/prvious/frankenphp:php8.3          # PHP 8.3
+
+# Development Images (Xdebug + dev tools)
+ghcr.io/prvious/frankenphp:latest-dev      # PHP 8.4 + goodies
+ghcr.io/prvious/frankenphp:php8.4-dev      # PHP 8.4 + goodies
+ghcr.io/prvious/frankenphp:php8.3-dev      # PHP 8.3 + goodies
 ```
-ghcr.io/prvious/frankenphp:latest          # Latest PHP 8.4 (Bookworm)
-ghcr.io/prvious/frankenphp:php8.4          # PHP 8.4 (Bookworm)
-ghcr.io/prvious/frankenphp:php8.3          # PHP 8.3 (Bookworm)
-ghcr.io/prvious/frankenphp:php8.4.2        # Specific PHP version
-```
 
-### Development Images
-```
-ghcr.io/prvious/frankenphp:latest-dev      # Latest PHP 8.4 with dev tools
-ghcr.io/prvious/frankenphp:php8.4-dev      # PHP 8.4 with dev tools
-ghcr.io/prvious/frankenphp:php8.3-dev      # PHP 8.3 with dev tools
-ghcr.io/prvious/frankenphp:php8.4.2-dev    # Specific PHP version with dev tools
-```
+## 🚀 Quick Start
 
-## Quick Start
+**Get up and running in 60 seconds or less.**
 
 ### Production Deployment
 
@@ -59,35 +73,36 @@ ghcr.io/prvious/frankenphp:php8.4.2-dev    # Specific PHP version with dev tools
 FROM ghcr.io/prvious/frankenphp:php8.4
 
 COPY . /app
-
 RUN composer install --no-dev --optimize-autoloader \
-    && pnpm install --prod \
-    && pnpm run build
+    && pnpm install --prod && pnpm run build
 
-EXPOSE 80
-EXPOSE 443
-
+EXPOSE 80 443
 CMD ["frankenphp", "run"]
 ```
 
 ### Local Development
 
 ```bash
-# Pull the latest development image
+# Pull and run
 docker pull ghcr.io/prvious/frankenphp:php8.4-dev
-
-# Run interactively with your project mounted
-docker run -it --rm \
-  -v $(pwd):/app \
-  -p 80:80 \
-  ghcr.io/prvious/frankenphp:php8.4-dev \
-  bash
-
-# Or use with Docker Compose
-docker-compose up
+docker run -it --rm -v $(pwd):/app -p 80:80 ghcr.io/prvious/frankenphp:php8.4-dev bash
 ```
 
-### Docker Compose Example
+### Docker Compose (Recommended)
+
+```yaml
+services:
+  app:
+    image: ghcr.io/prvious/frankenphp:php8.4-dev
+    ports: ["80:80", "443:443"]
+    volumes: [".:/app"]
+    environment:
+      SERVER_NAME: :80
+      XDEBUG_MODE: debug
+```
+
+<details>
+<summary>👉 Full Docker Compose Example</summary>
 
 ```yaml
 version: '3.8'
@@ -126,85 +141,57 @@ volumes:
   postgres-data:
 ```
 
-## Installed Extensions
+</details>
 
-### PHP Extensions (All Images)
-- **Database**: mysqli, pdo_mysql, pgsql, pdo_pgsql, pdo_sqlsrv, sqlsrv
-- **Image Processing**: gd, imagick, exif
-- **Core Functionality**: bcmath, intl, zip, xml, sockets
-- **Mail & FTP**: imap, ftp
-- **Background Processing**: pcntl
+## 🔋 What's Inside?
 
-### Additional Extensions (Development Only)
-- **Debugging**: xdebug (pre-configured for remote debugging)
+<details>
+<summary><strong>📦 PHP Extensions</strong> (click to expand)</summary>
 
-## Included Tools & Utilities
+**Database:** mysqli · pdo_mysql · pgsql · pdo_pgsql · pdo_sqlsrv · sqlsrv  
+**Images:** gd · imagick · exif  
+**Core:** bcmath · intl · zip · xml · sockets · imap · ftp · pcntl  
+**Dev Only:** xdebug (pre-configured)
 
-### Package Managers & Runtimes
-- **PHP**: Composer 2.x
-- **Node.js**: Version 24 (managed via pnpm env)
-- **pnpm**: Fast, disk space efficient package manager
-- **npm**: Latest stable version
+</details>
 
-### Database Clients
-- **PostgreSQL**: psql client (version 17)
-- **MySQL**: mysql client (latest)
+<details>
+<summary><strong>🛠️ Tools & Utilities</strong></summary>
 
-### Image Optimization Suite
-- **JPEG**: jpegoptim
-- **PNG**: optipng, pngquant
-- **GIF**: gifsicle
-- **AVIF**: libavif-bin (avifenc)
-- **SVG**: svgo (via npm global)
-- **Video**: FFmpeg
+**Package Managers:** Composer 2.x · pnpm · npm  
+**Runtimes:** PHP 8.3/8.4 · Node 24  
+**Database Clients:** PostgreSQL 17 · MySQL  
+**Image Optimization:** jpegoptim · optipng · pngquant · gifsicle · avifenc · FFmpeg · svgo  
+**Dev Tools (dev only):** GitHub CLI · eza · fzf · zoxide · htop · nano · Zsh + Zinit + Starship
 
-### Development Tools (Dev Images Only)
-- **Version Control**: GitHub CLI (gh)
-- **File Navigation**: eza (modern ls replacement), fzf (fuzzy finder), zoxide (smart cd)
-- **System Monitoring**: htop
-- **Text Editing**: nano
-- **Shell Enhancement**: Zsh with Zinit, Starship prompt
-- **AI Assistance**: opencode-ai
+</details>
 
-### Laravel Development Aliases
+<details>
+<summary><strong>⚡ Laravel Aliases</strong></summary>
 
-Pre-configured shell aliases for Laravel workflows:
+Pre-configured shell aliases to speed up your workflow:
 
 ```bash
-pint          # ./vendor/bin/pint (Laravel Pint formatter)
+pint          # ./vendor/bin/pint
 pa            # php artisan
-stan          # ./vendor/bin/phpstan (static analysis)
-phpstan       # ./vendor/bin/phpstan
-pest          # ./vendor/bin/pest (testing framework)
+stan          # ./vendor/bin/phpstan
+pest          # ./vendor/bin/pest
 amf           # php artisan migrate:fresh
 amfs          # php artisan migrate:fresh --seed
 ```
 
-### Health Check Utilities
+</details>
 
-Built-in health check scripts for container orchestration:
+## 🏗️ Building Images Locally
 
-- `healthcheck-octane`: Laravel Octane health verification
-- `healthcheck-horizon`: Laravel Horizon queue monitor
-- `healthcheck-queue`: Queue worker health check
-- `healthcheck-schedule`: Scheduler health verification
-
-## Building Images Locally
-
-### Prerequisites
-- Docker with BuildKit enabled
-- Docker Buildx plugin
-- Multi-architecture support (for ARM64 builds)
-
-### Build Commands
+**For contributors and the curious.**
 
 ```bash
-# Build all variants (production and development for all PHP versions)
+# Build all variants (production + dev for all PHP versions)
 docker buildx bake
 
 # Build specific variant
 docker buildx bake runner-php-8-4-bookworm-dev
-docker buildx bake runner-php-8-3-bookworm-production
 
 # Build and push to registry
 docker buildx bake --push
@@ -213,182 +200,106 @@ docker buildx bake --push
 docker buildx bake --print
 ```
 
-### Build Matrix
+**Build Matrix:** PHP 8.3/8.4 × Bookworm × Prod/Dev × AMD64/ARM64
 
-The build system supports:
-- **PHP Versions**: 8.3, 8.4 (automatically tracks latest patch versions)
-- **OS Variants**: Bookworm (Debian 12)
-- **Build Types**: Production and Development
-- **Architectures**: linux/amd64, linux/arm64
+## ⚙️ Configuration
 
-## Configuration
-
-### Environment Variables
+### Key Environment Variables
 
 ```bash
-# Server configuration
 SERVER_NAME=:80              # FrankenPHP server name
 TZ=UTC                       # Timezone
-
-# Development settings (dev images)
-XDEBUG_MODE=debug            # Xdebug mode: debug, coverage, profile
-XDEBUG_CONFIG=...            # Xdebug configuration
-
-# pnpm configuration
+XDEBUG_MODE=debug            # Xdebug mode (dev images)
 PNPM_HOME=/usr/local/share/pnpm
-PNPM_STORE_DIR=/home/deploy/.pnpm-store
 ```
 
-### User Configuration
-
-Images run as user `deploy` (UID: 1000, GID: 1000) by default, matching common development environment user IDs.
-
-Build-time arguments:
+### User Setup
+Containers run as user `deploy` (UID: 1000, GID: 1000) for security. Customize with build args:
 ```dockerfile
 ARG WWWUSER=1000
 ARG WWWGROUP=1000
-ARG USER=deploy
 ```
 
-### PHP Configuration
+## 🧪 Testing
 
-- **Production**: Uses php.ini-production settings
-- **Development**: Uses php.ini-development settings with Xdebug enabled
-
-## Testing
-
-Validate installed extensions and tools:
+Validate your image has everything it needs:
 
 ```bash
 # Test production image
 docker run --rm ghcr.io/prvious/frankenphp:php8.4 php test.php production
 
-# Test development image
+# Test development image  
 docker run --rm ghcr.io/prvious/frankenphp:php8.4-dev php test.php dev
 ```
 
-The test script verifies:
-- All required PHP extensions are loaded
-- Expected CLI tools and binaries are available
-- Configuration is correct for the environment
-- Package manager configurations are properly set
+The test script checks PHP extensions, CLI tools, and configuration.
 
-## Architecture
+## 🏛️ Architecture
 
-### Multi-Stage Build
+**Multi-stage builds done right.**
 
-The Dockerfile uses a multi-stage build pattern:
-
-1. **Base Stage**: Common setup for both production and development
-   - System packages installation
-   - PHP extensions compilation
-   - User and permission configuration
-   - Core tooling setup
-
-2. **Production Stage**: Optimized for deployment
-   - PHP production configuration
-   - Minimal Zsh setup
-   - No development tools
-   - Smaller image size
-
-3. **Development Stage**: Enhanced for local development
-   - Xdebug extension
-   - Full Zsh configuration with plugins
-   - Development CLI tools
-   - GitHub CLI integration
-
-### Build Automation
-
-Automated builds run daily via GitHub Actions:
-- Checks for new PHP releases
-- Builds images for latest patch versions of supported minor versions
-- Pushes to GitHub Container Registry
-- Supports manual triggering for specific versions
-
-## Security
-
-### Capabilities
-
-FrankenPHP binary has `CAP_NET_BIND_SERVICE` capability, allowing it to bind to privileged ports (80, 443) without running as root.
-
-### User Permissions
-
-All processes run as non-root user `deploy` with appropriate permissions for:
-- Application directory `/app`
-- Caddy data directory `/data/caddy`
-- Caddy configuration directory `/config/caddy`
-
-### Minimal Surface Area
-
-Production images exclude:
-- Development tools (gh, htop, nano)
-- Debugging extensions (xdebug)
-- Interactive shell enhancements
-- Unnecessary system utilities
-
-## Performance Optimization
-
-### pnpm Store
-
-Configured with a dedicated store directory for optimal package sharing:
-```bash
-/home/deploy/.pnpm-store
+```mermaid
+graph LR
+    A[Base Stage] --> B[Production]
+    A --> C[Development]
+    B --> D[Lean & Secure]
+    C --> E[Full Tooling]
 ```
 
-### Image Layers
+**Base:** Common setup (extensions, system packages, user config)  
+**Production:** Optimized php.ini, minimal Zsh, no dev tools  
+**Development:** Xdebug, full Zsh setup, GitHub CLI, interactive tools
 
-Optimized layer caching strategy:
-- Environment files copied early
-- System packages installed in batched commands
-- Plugin pre-downloading during build time
-- Cleanup of apt caches and temporary files
+Multi-platform builds (AMD64/ARM64) run daily via GitHub Actions—auto-detecting new PHP releases.
 
-### Multi-Architecture
+## 🔒 Security
 
-Native builds for ARM64 provide optimal performance on:
-- Apple Silicon (M1, M2, M3 Macs)
-- AWS Graviton instances
-- Raspberry Pi 4+
-- Other ARM-based servers
+**Run safe. Sleep well.**
 
-## Contributing
+- ✅ Non-root user (`deploy`) for all processes
+- ✅ `CAP_NET_BIND_SERVICE` for privileged ports (80/443) without root
+- ✅ Production images exclude dev tools and Xdebug
+- ✅ Proper permissions on `/app`, `/data/caddy`, `/config/caddy`
 
-Contributions are welcome! Please follow these guidelines:
+## ⚡ Performance
+
+**Fast by default.**
+
+- 🎯 **pnpm store** at `/home/deploy/.pnpm-store` for package sharing
+- 🎯 **Layer caching** optimized (env files first, cleanup last)
+- 🎯 **Multi-arch native builds** for Apple Silicon, AWS Graviton, ARM servers
+- 🎯 **Plugin pre-downloading** during build time
+
+## 🤝 Contributing
+
+**We welcome contributions!**
 
 ### Code Style
-- **HCL**: 4-space indentation, descriptive variable names
-- **Shell**: Use `set -exo pipefail`, proper quoting
-- **Docker**: Multi-platform support, proper OCI labels
-- **Documentation**: Clear, professional, no emojis
+- **HCL:** 4-space indentation, descriptive variables
+- **Shell:** `set -exo pipefail`, proper quoting
+- **Docker:** Multi-platform support, OCI labels
+- **Docs:** Clear, professional, minimal emojis
 
-### Pull Request Process
-1. Fork the repository
+### Process
+1. Fork the repo
 2. Create a feature branch
-3. Test changes with `docker buildx bake`
-4. Validate with test suite
-5. Submit PR with clear description
+3. Test with `docker buildx bake`
+4. Submit PR with clear description
 
-## License
+---
 
-This project builds upon FrankenPHP and includes various open-source tools. Please refer to individual component licenses for specific terms.
+<div align="center">
 
-## Related Projects
+## 🔗 Related Projects
 
-- [FrankenPHP](https://frankenphp.dev/) - The modern PHP app server
-- [Caddy](https://caddyserver.com/) - The web server powering FrankenPHP
-- [Laravel](https://laravel.com/) - The PHP framework for web artisans
+[**FrankenPHP**](https://frankenphp.dev/) · [**Caddy**](https://caddyserver.com/) · [**Laravel**](https://laravel.com/)
 
-## Support
+---
 
-For issues, questions, or contributions:
-- Open an issue on GitHub
-- Check existing issues and pull requests
-- Review the documentation and examples
+### 📝 License
 
-## Acknowledgments
+Open source. Please refer to individual component licenses.
 
-Built with:
-- FrankenPHP by Kévin Dunglas
-- Caddy web server
-- PHP community extensions
-- Open-source tooling ecosystem
+**Built with** FrankenPHP by Kévin Dunglas · Caddy · PHP Community
+
+</div>
