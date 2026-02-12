@@ -21,7 +21,7 @@ function "clean_tag" {
 
 function "stripOS" {
     params = [tag]
-    result = replace(tag, "-bookworm", "")
+    result = replace(tag, "-trixie", "")
 }
 
 function "tag" {
@@ -67,7 +67,7 @@ target "default" {
     name = "${tgt}-php-${replace(php_version, ".", "-")}-${os}${variant == "dev" ? "-dev" : "-production"}"
     matrix = {
         php_version = split(",", replace(PHP_VERSION, " ", ""))
-        os = ["bookworm"]
+        os = ["bookworm", "trixie"]
         tgt = ["runner"]
         variant = ["prod", "dev"]
     }
