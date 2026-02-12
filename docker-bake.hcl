@@ -21,7 +21,7 @@ function "clean_tag" {
 
 function "stripOS" {
     params = [tag]
-    result = replace(tag, "-bookworm", "")
+    result = replace(tag, "-trixie", "")
 }
 
 function "tag" {
