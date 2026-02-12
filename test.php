@@ -17,7 +17,7 @@ const PRODUCTION_BINARIES = ['php', 'composer', 'node', 'npm', 'pnpm', 'jpegopti
 
 const PRODUCTION_ONLY_BINARIES = [];
 
-const DEV_ONLY_BINARIES = ['gh', 'htop', 'nano'];
+const DEV_ONLY_BINARIES = ['gh', 'htop', 'nano', 'fzf', 'zoxide'];
 
 const DEV_BINARIES = [
     ...PRODUCTION_BINARIES,
@@ -208,6 +208,16 @@ function sanity(Runner $runner): void
 
     $modules = @shell_exec('php -m 2>/dev/null');
     $runner->check('php-cli works', is_string($modules) && trim($modules) !== '');
+
+    if ($runner->environment === 'dev') {
+        $pnpmStorePath = trim(@shell_exec('pnpm store path 2>/dev/null') ?? '');
+        $expectedPath = '/home/deploy/.pnpm-store';
+        $runner->check(
+            'pnpm store path',
+            str_starts_with($pnpmStorePath, $expectedPath),
+            "expected {$expectedPath}, got {$pnpmStorePath}"
+        );
+    }
 }
 
 function go(): never

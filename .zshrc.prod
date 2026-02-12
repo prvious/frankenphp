@@ -1,0 +1,58 @@
+# Environment
+. /etc/profile.d/.env
+
+if [ -f ~/.bash_aliases ]; then
+    . ~/.bash_aliases
+fi
+
+# Zinit installation
+ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
+if [[ ! -d "$ZINIT_HOME" ]]; then
+    mkdir -p "$(dirname $ZINIT_HOME)"
+    git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+fi
+source "${ZINIT_HOME}/zinit.zsh"
+
+# Minimal plugins for production (loaded immediately)
+zinit light zsh-users/zsh-autosuggestions
+
+# OMZ libs and git plugin
+zinit wait lucid for \
+    OMZL::git.zsh \
+    OMZP::git
+
+# Syntax highlighting (load last)
+zinit wait lucid for \
+    atinit"zicompinit; zicdreplay" \
+    zdharma-continuum/fast-syntax-highlighting
+
+# Basic aliases
+alias ll='ls -lah'
+alias la='ls -a'
+alias l='ls -lh'
+
+# Keybindings
+bindkey -e
+bindkey ';5A' history-search-backward
+bindkey ';5B' history-search-forward
+bindkey ';5C' forward-word
+bindkey ';5D' backward-word
+bindkey '^[[3~' delete-char
+
+# History
+HISTSIZE=5000
+HISTFILE=~/.zsh_history
+SAVEHIST=$HISTSIZE
+HISTDUP=erase
+
+setopt appendhistory
+setopt sharehistory
+setopt hist_ignore_space
+setopt hist_ignore_all_dups
+setopt hist_save_no_dups
+setopt hist_ignore_dups
+setopt hist_find_no_dups
+
+# Completion styling
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
+zstyle ':completion:*' menu select

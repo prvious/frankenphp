@@ -1,3 +1,0 @@
---container-architecture=linux/amd64
---action-offline-mode
--P ubuntu-24.04=catthehacker/ubuntu:full-22.04
