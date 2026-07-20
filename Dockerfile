@@ -25,7 +25,7 @@ RUN apt update \
     && echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
     && curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg \
     && apt-get update \
-    && apt-get install -y supervisor git unzip postgresql-client-17 default-mysql-client zsh procps \
+    && apt-get install -y supervisor git unzip postgresql-client-17 default-mysql-client zsh procps libatomic1 \
     && echo 'source /etc/profile.d/.env' >> /etc/bash.bashrc \
     && curl -fsSL https://get.pnpm.io/install.sh | env PNPM_HOME="${PNPM_HOME}" bash - \
     && export PATH="${PNPM_HOME}:${PATH}" \
