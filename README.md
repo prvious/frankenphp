@@ -22,17 +22,17 @@ docker pull ghcr.io/prvious/frankenphp:php8.5
 - **Database Clients**: PostgreSQL 17, MySQL
 - **Image Tools**: jpegoptim, optipng, pngquant, gifsicle, avifenc, svgo, ffmpeg
 - **Process Manager**: Supervisor
-- **Shell**: Zsh with zinit
+- **Shell**: Zsh
 
 ### Dev Only
 
 - **PHP**: Xdebug
 - **Tools**: GitHub CLI, OpenCode, htop, nano, fzf, zoxide, eza
-- **Shell**: Starship prompt, syntax highlighting, autosuggestions, fzf-tab
+- **Shell**: Oh My Zsh, Starship prompt, syntax highlighting, autosuggestions, fzf-tab
 
 ## Available Tags
 
-The entries below illustrate the dynamically selected PHP minor tag format:
+The entries below illustrate the configured PHP minor tag format:
 
 | Tag | Description |
 |-----|-------------|
@@ -43,7 +43,7 @@ The entries below illustrate the dynamically selected PHP minor tag format:
 | `latest` | Latest supported PHP production |
 | `latest-dev` | Latest supported PHP development |
 
-The workflow discovers and publishes the two newest stable PHP minor lines. Unqualified tags use Debian Trixie. For Debian Bookworm, insert `-bookworm` before the optional `-dev` suffix: `php8.5-bookworm`, `php8.5-bookworm-dev`, `latest-bookworm`, or `latest-bookworm-dev`. All images support `linux/amd64` and `linux/arm64`.
+The workflow publishes the configured PHP 8.4 and 8.5 minor lines and follows their latest FrankenPHP patch releases. Unqualified tags use Debian Trixie. For Debian Bookworm, insert `-bookworm` before the optional `-dev` suffix: `php8.5-bookworm`, `php8.5-bookworm-dev`, `latest-bookworm`, or `latest-bookworm-dev`. All images support `linux/amd64` and `linux/arm64`.
 
 ## Usage with Laravel
 
@@ -93,11 +93,11 @@ docker build --build-arg VERSION=8.5-trixie --target dev -t frankenphp:dev .
 # Build prod image
 docker build --build-arg VERSION=8.5-trixie --target prod -t frankenphp:prod .
 
-# Build the default PHP 8.4/8.5 matrix
+# Build the default PHP 8.4/8.5 minor-version matrix
 docker buildx bake
 
-# Build an explicit version set and label it with the current commit
-PHP_VERSION=8.4.23,8.5.8 SHA="$(git rev-parse HEAD)" LATEST=8.5.8 docker buildx bake
+# Build an explicit minor-version set and label it with the current commit
+PHP_VERSION=8.4,8.5 SHA="$(git rev-parse HEAD)" LATEST=8.5 docker buildx bake
 ```
 
 ## Configuration
