@@ -32,7 +32,7 @@ docker pull ghcr.io/prvious/frankenphp:php8.5
 
 ## Available Tags
 
-The entries below are current examples of the dynamically selected PHP minor tags:
+The entries below illustrate the dynamically selected PHP minor tag format:
 
 | Tag | Description |
 |-----|-------------|

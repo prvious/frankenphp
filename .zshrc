@@ -16,9 +16,6 @@ if [[ ! -r "$ZINIT_HOME/zinit.zsh" ]]; then
 fi
 source "${ZINIT_HOME}/zinit.zsh"
 
-# Completions path
-export FPATH="$HOME/.eza/completions/zsh:$FPATH"
-
 # Initialize completion before sourcing Oh My Zsh plugins that register compdefs
 autoload -Uz compinit
 compinit
