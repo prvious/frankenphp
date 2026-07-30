@@ -20,186 +20,35 @@ permissions:
 
 env:
     IMAGE_NAME: "ghcr.io/prvious/frankenphp"
+    REFRESH: ${{ github.event_name == 'schedule' && github.run_id || '' }}
+    SHA: ${{ github.sha }}
 
 jobs:
     prepare:
         runs-on: ubuntu-24.04
         outputs:
-            # Push if it's a scheduled job, a tag, or if we're committing to the main branch
-            push: ${{ github.event_name == 'schedule' || (github.ref == 'refs/heads/main' && github.event_name != 'pull_request') }}
             variants: ${{ steps.matrix.outputs.variants }}
             platforms: ${{ steps.matrix.outputs.platforms }}
             metadata: ${{ steps.matrix.outputs.metadata }}
-            php_version: ${{ steps.check.outputs.php_version }}
-            latest_version: ${{ steps.check.outputs.latest_version }}
-            skip: ${{ steps.check.outputs.skip }}
 
         steps:
-            - name: Check PHP versions
-              id: check
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: |
-                  # Fetch the latest PHP versions from GitHub releases using gh CLI
-                  echo "🔍 Fetching latest PHP versions from GitHub releases..."
-
-                  # Get all PHP 8.x releases and extract version numbers
-                  ALL_PHP_VERSIONS=$(gh api repos/php/php-src/releases --paginate | jq -r '.[].tag_name' | grep -E '^php-8\.[0-9]+\.[0-9]+$' | sed 's/^php-//' | sort -V)
-
-                  if [[ -z "${ALL_PHP_VERSIONS}" ]]; then
-                      echo "❌ Failed to fetch PHP versions from GitHub"
-                      exit 1
-                  fi
-
-                  echo "📋 All PHP 8.x versions found:"
-                  echo "${ALL_PHP_VERSIONS}"
-
-                  # Extract unique minor versions (8.3, 8.4, etc.) and get the latest patch for each
-                  declare -A LATEST_MINOR_VERSIONS
-
-                  while IFS= read -r version; do
-                      if [[ -n "$version" ]]; then
-                          minor_version=$(echo "$version" | cut -d. -f1,2)
-                          LATEST_MINOR_VERSIONS["$minor_version"]="$version"
-                      fi
-                  done <<< "$ALL_PHP_VERSIONS"
-
-                  # Get the last 2 minor versions
-                  mapfile -t MINOR_VERSIONS_SORTED < <(printf '%s\n' "${!LATEST_MINOR_VERSIONS[@]}" | sort -V | tail -2)
-
-                  if [[ ${#MINOR_VERSIONS_SORTED[@]} -lt 2 ]]; then
-                      echo "❌ Could not find 2 different minor versions"
-                      exit 1
-                  fi
-
-                  PHP_VERSION_1="${MINOR_VERSIONS_SORTED[0]}"
-                  PHP_VERSION_2="${MINOR_VERSIONS_SORTED[1]}"
-
-                  echo "✅ Selected PHP minor versions: ${PHP_VERSION_1} and ${PHP_VERSION_2}"
-                  echo "   Latest patches: ${LATEST_MINOR_VERSIONS[$PHP_VERSION_1]} and ${LATEST_MINOR_VERSIONS[$PHP_VERSION_2]}"
-
-
-                  echo "🔍 Checking FrankenPHP images for PHP ${PHP_VERSION_1} and ${PHP_VERSION_2}..."
-
-                  # Check if FrankenPHP images exist and get their PHP versions
-                  PHP_1_LATEST=""
-                  PHP_2_LATEST=""
-
-                  # For FrankenPHP, we need to check if images exist for these minor versions
-                  # and get the exact PHP version from the image environment
-                  if skopeo inspect "docker://docker.io/dunglas/frankenphp:php${PHP_VERSION_1}" --override-os linux --override-arch amd64 >/dev/null 2>&1; then
-                      PHP_1_LATEST=$(skopeo inspect "docker://docker.io/dunglas/frankenphp:php${PHP_VERSION_1}" --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-                      echo "✅ Found FrankenPHP image for PHP ${PHP_VERSION_1}: ${PHP_1_LATEST}"
-                  else
-                      echo "⚠️ No FrankenPHP image found for PHP ${PHP_VERSION_1}"
-                  fi
-
-                  if skopeo inspect "docker://docker.io/dunglas/frankenphp:php${PHP_VERSION_2}" --override-os linux --override-arch amd64 >/dev/null 2>&1; then
-                      PHP_2_LATEST=$(skopeo inspect "docker://docker.io/dunglas/frankenphp:php${PHP_VERSION_2}" --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-                      echo "✅ Found FrankenPHP image for PHP ${PHP_VERSION_2}: ${PHP_2_LATEST}"
-                  else
-                      echo "⚠️ No FrankenPHP image found for PHP ${PHP_VERSION_2}"
-                  fi
-
-                  # Only proceed if we have at least one valid version
-                  if [[ -z "${PHP_1_LATEST}" ]] && [[ -z "${PHP_2_LATEST}" ]]; then
-                      echo "❌ No valid FrankenPHP images found for the latest PHP versions"
-                      exit 1
-                  fi
-
-                  # Build the php_version string (comma-separated)
-                  PHP_VERSION_OUTPUT=""
-                  if [[ -n "${PHP_1_LATEST}" ]]; then
-                      PHP_VERSION_OUTPUT="${PHP_1_LATEST}"
-                  fi
-                  if [[ -n "${PHP_2_LATEST}" ]]; then
-                      if [[ -n "${PHP_VERSION_OUTPUT}" ]]; then
-                          PHP_VERSION_OUTPUT="${PHP_VERSION_OUTPUT},${PHP_2_LATEST}"
-                      else
-                          PHP_VERSION_OUTPUT="${PHP_2_LATEST}"
-                      fi
-                  fi
-
-                  # Determine which is the latest version
-                  LATEST_VERSION="${PHP_2_LATEST:-$PHP_1_LATEST}"
-
-                  {
-                    echo php_version="${PHP_VERSION_OUTPUT}"
-                    echo latest_version="${LATEST_VERSION}"
-                  } >> "${GITHUB_OUTPUT}"
-
-                  echo "📤 Output variables set:"
-                  echo "  php_version=${PHP_VERSION_OUTPUT}"
-                  echo "  latest_version=${LATEST_VERSION}"
-
-                  # Check if the Docker images must be rebuilt
-                  if [[ "${GITHUB_EVENT_NAME}" != "schedule"  ]]; then
-                      echo skip=false >> "${GITHUB_OUTPUT}"
-                      exit 0
-                  fi
-
-                  # For scheduled runs, check if our images are up to date
-                  echo "🔍 Checking if our FrankenPHP images need rebuilding..."
-                  NEED_REBUILD=false
-
-                  if [[ -n "${PHP_1_LATEST}" ]]; then
-                      if skopeo inspect "docker://ghcr.io/prvious/frankenphp:php${PHP_VERSION_1}" --override-os linux --override-arch amd64 >/dev/null 2>&1; then
-                          FRANKENPHP_1_LATEST=$(skopeo inspect "docker://ghcr.io/prvious/frankenphp:php${PHP_VERSION_1}" --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-                          if [[ "${FRANKENPHP_1_LATEST}" != "${PHP_1_LATEST}" ]]; then
-                              echo "🔄 PHP ${PHP_VERSION_1} needs rebuild: ${FRANKENPHP_1_LATEST} -> ${PHP_1_LATEST}"
-                              NEED_REBUILD=true
-                          fi
-                      else
-                          echo "🆕 PHP ${PHP_VERSION_1} image doesn't exist, needs build"
-                          NEED_REBUILD=true
-                      fi
-                  fi
-
-                  if [[ -n "${PHP_2_LATEST}" ]]; then
-                      if skopeo inspect "docker://ghcr.io/prvious/frankenphp:php${PHP_VERSION_2}" --override-os linux --override-arch amd64 >/dev/null 2>&1; then
-                          FRANKENPHP_2_LATEST=$(skopeo inspect "docker://ghcr.io/prvious/frankenphp:php${PHP_VERSION_2}" --override-os linux --override-arch amd64 | jq -r '.Env[] | select(test("^PHP_VERSION=")) | sub("^PHP_VERSION="; "")')
-                          if [[ "${FRANKENPHP_2_LATEST}" != "${PHP_2_LATEST}" ]]; then
-                              echo "🔄 PHP ${PHP_VERSION_2} needs rebuild: ${FRANKENPHP_2_LATEST} -> ${PHP_2_LATEST}"
-                              NEED_REBUILD=true
-                          fi
-                      else
-                          echo "🆕 PHP ${PHP_VERSION_2} image doesn't exist, needs build"
-                          NEED_REBUILD=true
-                      fi
-                  fi
-
-                  if [[ "${NEED_REBUILD}" == "true" ]]; then
-                      echo skip=false >> "${GITHUB_OUTPUT}"
-                      echo "🚀 Images need rebuilding"
-                  else
-                      echo skip=true >> "${GITHUB_OUTPUT}"
-                      echo "✅ All images are up to date"
-                  fi
-
             - uses: actions/checkout@v4
-              if: ${{ !fromJson(steps.check.outputs.skip) }}
 
             - name: Set up Docker Buildx
-              if: ${{ !fromJson(steps.check.outputs.skip) }}
               uses: docker/setup-buildx-action@v3
 
             - name: Create variants matrix
-              if: ${{ !fromJson(steps.check.outputs.skip) }}
               id: matrix
               shell: bash
               run: |
                   set -e
-                  # Print metadata for all targets so we capture all expanded runner-* targets
                   METADATA="$(docker buildx bake --print | jq -c)"
                   {
                     echo metadata="${METADATA}"
                     echo variants="$(jq -c '[.target | keys[] | select(startswith("runner-")) | sub("^runner-"; "")] | unique' <<< "${METADATA}")"
                     echo platforms="$(jq -c 'first(.target[]) | .platforms' <<< "${METADATA}")"
                   } >> "${GITHUB_OUTPUT}"
-              env:
-                  PHP_VERSION: ${{ steps.check.outputs.php_version }}
-                  LATEST: ${{ steps.check.outputs.latest_version }}
-                  SHA: ${{ github.sha }}
+
     build:
         runs-on: ${{ startsWith(matrix.platform, 'linux/arm') && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
         needs:
@@ -207,7 +56,6 @@ jobs:
         permissions:
             contents: read
             packages: write
-        if: ${{ !fromJson(needs.prepare.outputs.skip) }}
         strategy:
             fail-fast: false
             matrix:
@@ -229,7 +77,7 @@ jobs:
                   platforms: ${{ matrix.platform }}
 
             - name: Login to ghcr.io
-              if: fromJson(needs.prepare.outputs.push)
+              if: github.event_name != 'pull_request'
               uses: docker/login-action@v3
               with:
                   registry: ghcr.io
@@ -243,10 +91,9 @@ jobs:
               id: build
               uses: docker/bake-action@v6
               with:
-                  push: ${{ fromJson(needs.prepare.outputs.push) }}
+                  push: ${{ github.event_name != 'pull_request' }}
                   targets: runner-${{ matrix.variant }}
                   set: |
-                      ${{ (github.event_name == 'pull_request') && '*.args.NO_COMPRESS=1' || '' }}
                       *.tags=
                       *.platform=${{ matrix.platform }}
                       *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
@@ -261,12 +108,8 @@ jobs:
                       *.cache-to=type=gha,scope=${{ matrix.variant }}-${{ github.ref }},mode=max,ignore-error=true
                       *.cache-to=type=gha,scope=base-${{ matrix.platform }},mode=max,ignore-error=true
                       *.cache-to=type=gha,scope=base,mode=max,ignore-error=true
-                      *.output=type=docker,dest=/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar
-                      ${{ fromJson(needs.prepare.outputs.push) && format('*.output=type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE_NAME) || '' }}
-              env:
-                  PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
-                  LATEST: ${{ needs.prepare.outputs.latest_version }}
-                  SHA: ${{ github.sha }}
+                      *.output=type=docker,name=frankenphp:test,dest=/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar
+                      ${{ github.event_name != 'pull_request' && format('*.output=type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE_NAME) || '' }}
 
             - name: Upload image artifact
               uses: actions/upload-artifact@v4
@@ -274,12 +117,12 @@ jobs:
                   name: image-runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}
                   path: /tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar
                   if-no-files-found: error
-                  compression-level: 9
+                  compression-level: 0
                   retention-days: 1
 
             - # Workaround for https://github.com/actions/runner/pull/2477#issuecomment-1501003600
               name: Export metadata
-              if: fromJson(needs.prepare.outputs.push)
+              if: github.event_name != 'pull_request'
               run: |
                   mkdir -p /tmp/metadata/runner
                   runnerDigest=$(jq -r '."runner-${{ matrix.variant }}"."containerimage.digest"' <<< "${METADATA}")
@@ -288,7 +131,7 @@ jobs:
                   METADATA: ${{ steps.build.outputs.metadata }}
 
             - name: Upload runner metadata
-              if: fromJson(needs.prepare.outputs.push)
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v4
               with:
                   name: metadata-runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}
@@ -301,7 +144,6 @@ jobs:
         needs:
             - prepare
             - build
-        if: ${{ !fromJson(needs.prepare.outputs.skip) }}
         strategy:
             fail-fast: false
             matrix:
@@ -317,9 +159,6 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v4
 
-            - name: Setup Docker Buildx
-              uses: docker/setup-buildx-action@v3
-
             - name: Download built image
               uses: actions/download-artifact@v4
               with:
@@ -327,44 +166,7 @@ jobs:
                   path: /tmp/images
 
             - name: Load image from tarball
-              run: |
-                  TARBALL="/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
-
-                  echo "Loading image from tarball: ${TARBALL}"
-
-                  # Verify tarball exists
-                  if [[ ! -f "${TARBALL}" ]]; then
-                      echo "Error: Tarball not found!"
-                      ls -la /tmp/images/
-                      exit 1
-                  fi
-
-                  # Check tarball size
-                  SIZE=$(stat -f%z "${TARBALL}" 2>/dev/null || stat -c%s "${TARBALL}")
-                  echo "Tarball size: $((SIZE / 1024 / 1024))MB"
-
-                  # Load the image and capture the output
-                  echo "Loading image into Docker..."
-                  LOAD_OUTPUT=$(docker load < "${TARBALL}")
-                  echo "${LOAD_OUTPUT}"
-
-                  # Extract the image ID from the load output
-                  LOADED_IMAGE_ID=$(echo "${LOAD_OUTPUT}" | grep "Loaded image ID:" | cut -d' ' -f4)
-                  echo "✅ Loaded image ID: ${LOADED_IMAGE_ID}"
-
-                  if [[ -z "${LOADED_IMAGE_ID}" ]]; then
-                      echo "❌ Error: Could not extract image ID from docker load output!"
-                      echo "Load output was: ${LOAD_OUTPUT}"
-                      exit 1
-                  fi
-
-                  # Export the image ID for use in the test step
-                  echo "LOADED_IMAGE_ID=${LOADED_IMAGE_ID}" >> "$GITHUB_ENV"
-
-                  # Verify image is available
-                  echo "Image loaded successfully:"
-                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | head -1
-                  docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | grep "${LOADED_IMAGE_ID#sha256:}" || echo "Image ID: ${LOADED_IMAGE_ID}"
+              run: docker load --input "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
 
             - name: Test image environment
               run: |
@@ -374,13 +176,8 @@ jobs:
                       *) ENV_TYPE="production" ;;
                   esac
 
-                  echo "🧪 Testing ${ENV_TYPE} environment in image: ${LOADED_IMAGE_ID}"
-
-                  # Run our test script inside the container using the loaded image ID
-                  docker run --rm -v "$PWD/test.php:/test.php:ro" -e FORCE_COLOR=1 "${LOADED_IMAGE_ID}" php /test.php "${ENV_TYPE}"
-              env:
-                  PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
-                  LATEST: ${{ needs.prepare.outputs.latest_version }}
+                  echo "🧪 Testing ${ENV_TYPE} environment"
+                  docker run --rm -v "$PWD/test.php:/test.php:ro" -e FORCE_COLOR=1 frankenphp:test php /test.php "${ENV_TYPE}"
 
     push:
         runs-on: ubuntu-24.04
@@ -388,7 +185,7 @@ jobs:
             - prepare
             - build
             - test
-        if: fromJson(needs.prepare.outputs.push)
+        if: github.event_name != 'pull_request'
         permissions:
             contents: read
             packages: write
@@ -396,12 +193,11 @@ jobs:
             fail-fast: false
             matrix:
                 variant: ${{ fromJson(needs.prepare.outputs.variants) }}
-                target: ["runner"]
         steps:
             - name: Download metadata
               uses: actions/download-artifact@v4
               with:
-                  pattern: metadata-${{ matrix.target }}-${{ matrix.variant }}-*
+                  pattern: metadata-runner-${{ matrix.variant }}-*
                   path: /tmp/metadata
                   merge-multiple: true
 
@@ -420,7 +216,7 @@ jobs:
               run: |
                   set -x
                   # shellcheck disable=SC2046,SC2086
-                  docker buildx imagetools create $(jq -cr '.target."${{ matrix.target }}-${{ matrix.variant }}".tags | map("-t " + .) | join(" ")' <<< ${METADATA}) \
+                  docker buildx imagetools create $(jq -cr '.target."runner-${{ matrix.variant }}".tags | map("-t " + .) | join(" ")' <<< "${METADATA}") \
                     $(printf "${IMAGE_NAME}@sha256:%s " *)
               env:
                   METADATA: ${{ needs.prepare.outputs.metadata }}
@@ -428,6 +224,6 @@ jobs:
             - name: Inspect image
               run: |
                   # shellcheck disable=SC2046,SC2086
-                  docker buildx imagetools inspect $(jq -cr '.target."${{ matrix.target }}-${{ matrix.variant }}".tags | first' <<< ${METADATA})
+                  docker buildx imagetools inspect $(jq -cr '.target."runner-${{ matrix.variant }}".tags | first' <<< "${METADATA}")
               env:
                   METADATA: ${{ needs.prepare.outputs.metadata }}
