@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+const NODE_MAJOR_VERSION = 26;
+const PNPM_MAJOR_VERSION = 11;
+
 const PRODUCTION_EXTENSIONS = ['mysqli', 'pdo_mysql', 'pgsql', 'pdo_pgsql', 'bcmath', 'gd', 'imagick', 'imap', 'pcntl', 'zip', 'intl', 'exif', 'ftp', 'xml', 'pdo_sqlsrv', 'sqlsrv', 'sockets'];
 
 const PRODUCTION_ONLY_EXTENSIONS = [];
@@ -13,11 +16,11 @@ const DEV_EXTENSIONS = [
     ...DEV_ONLY_EXTENSIONS,
 ];
 
-const PRODUCTION_BINARIES = ['php', 'composer', 'node', 'npm', 'pnpm', 'jpegoptim', 'optipng', 'pngquant', 'gifsicle', 'ffmpeg', 'svgo', 'avifenc', 'zsh'];
+const PRODUCTION_BINARIES = ['php', 'composer', 'node', 'pnpm', 'jpegoptim', 'optipng', 'pngquant', 'gifsicle', 'ffmpeg', 'svgo', 'avifenc', 'zsh'];
 
 const PRODUCTION_ONLY_BINARIES = [];
 
-const DEV_ONLY_BINARIES = ['gh', 'htop', 'nano', 'fzf', 'zoxide'];
+const DEV_ONLY_BINARIES = ['gh', 'eza', 'htop', 'nano', 'fzf', 'zoxide'];
 
 const DEV_BINARIES = [
     ...PRODUCTION_BINARIES,
@@ -208,6 +211,20 @@ function sanity(Runner $runner): void
 
     $modules = @shell_exec('php -m 2>/dev/null');
     $runner->check('php-cli works', is_string($modules) && trim($modules) !== '');
+
+    $nodeVersion = trim(@shell_exec('node --version 2>/dev/null') ?? '');
+    $runner->check(
+        'node major version',
+        str_starts_with($nodeVersion, 'v' . NODE_MAJOR_VERSION . '.'),
+        'expected v' . NODE_MAJOR_VERSION . ".x, got {$nodeVersion}"
+    );
+
+    $pnpmVersion = trim(@shell_exec('pnpm --version 2>/dev/null') ?? '');
+    $runner->check(
+        'pnpm major version',
+        str_starts_with($pnpmVersion, PNPM_MAJOR_VERSION . '.'),
+        'expected ' . PNPM_MAJOR_VERSION . ".x, got {$pnpmVersion}"
+    );
 
     if ($runner->environment === 'dev') {
         $pnpmStorePath = trim(@shell_exec('pnpm store path 2>/dev/null') ?? '');
