@@ -26,7 +26,7 @@ jobs:
         runs-on: ubuntu-24.04
         outputs:
             # Push if it's a scheduled job, a tag, or if we're committing to the main branch
-            push: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.version) || (github.ref == 'refs/heads/main' && github.event_name != 'pull_request')) && true || false }}
+            push: ${{ github.event_name == 'schedule' || (github.ref == 'refs/heads/main' && github.event_name != 'pull_request') }}
             variants: ${{ steps.matrix.outputs.variants }}
             platforms: ${{ steps.matrix.outputs.platforms }}
             metadata: ${{ steps.matrix.outputs.metadata }}
@@ -65,15 +65,15 @@ jobs:
                   done <<< "$ALL_PHP_VERSIONS"
 
                   # Get the last 2 minor versions
-                  MINOR_VERSIONS_SORTED=($(printf '%s\n' "${!LATEST_MINOR_VERSIONS[@]}" | sort -V | tail -2))
+                  mapfile -t MINOR_VERSIONS_SORTED < <(printf '%s\n' "${!LATEST_MINOR_VERSIONS[@]}" | sort -V | tail -2)
 
                   if [[ ${#MINOR_VERSIONS_SORTED[@]} -lt 2 ]]; then
                       echo "❌ Could not find 2 different minor versions"
                       exit 1
                   fi
 
-                  PHP_VERSION_1="8.3"
-                  PHP_VERSION_2="8.4"
+                  PHP_VERSION_1="${MINOR_VERSIONS_SORTED[0]}"
+                  PHP_VERSION_2="${MINOR_VERSIONS_SORTED[1]}"
 
                   echo "✅ Selected PHP minor versions: ${PHP_VERSION_1} and ${PHP_VERSION_2}"
                   echo "   Latest patches: ${LATEST_MINOR_VERSIONS[$PHP_VERSION_1]} and ${LATEST_MINOR_VERSIONS[$PHP_VERSION_2]}"
@@ -199,6 +199,7 @@ jobs:
               env:
                   PHP_VERSION: ${{ steps.check.outputs.php_version }}
                   LATEST: ${{ steps.check.outputs.latest_version }}
+                  SHA: ${{ github.sha }}
     build:
         runs-on: ${{ startsWith(matrix.platform, 'linux/arm') && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
         needs:
@@ -265,6 +266,7 @@ jobs:
               env:
                   PHP_VERSION: ${{ needs.prepare.outputs.php_version }}
                   LATEST: ${{ needs.prepare.outputs.latest_version }}
+                  SHA: ${{ github.sha }}
 
             - name: Upload image artifact
               uses: actions/upload-artifact@v4
@@ -367,11 +369,10 @@ jobs:
             - name: Test image environment
               run: |
                   # Get the built image name
-                  if [[ "${{ matrix.variant }}" == *"-dev" ]]; then
-                      ENV_TYPE="dev"
-                  else
-                      ENV_TYPE="production"
-                  fi
+                  case "${{ matrix.variant }}" in
+                      *-dev) ENV_TYPE="dev" ;;
+                      *) ENV_TYPE="production" ;;
+                  esac
 
                   echo "🧪 Testing ${ENV_TYPE} environment in image: ${LOADED_IMAGE_ID}"
 

@@ -8,45 +8,43 @@ if [ -f ~/.bash_aliases ]; then
     . ~/.bash_aliases
 fi
 
-# Zinit installation
+# Load the build-pinned Zinit installation
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
-if [[ ! -d "$ZINIT_HOME" ]]; then
-    mkdir -p "$(dirname $ZINIT_HOME)"
-    git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+if [[ ! -r "$ZINIT_HOME/zinit.zsh" ]]; then
+    print -u2 "Missing pinned Zinit installation: $ZINIT_HOME"
+    return 1
 fi
 source "${ZINIT_HOME}/zinit.zsh"
 
-# Completions path
-export FPATH="$HOME/.eza/completions/zsh:$FPATH"
+# Initialize completion before sourcing Oh My Zsh plugins that register compdefs
+autoload -Uz compinit
+compinit
 
 # Essential plugins (loaded immediately)
+zinit ice ver"85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5"
 zinit light zsh-users/zsh-autosuggestions
+zinit ice ver"24105b15714bfec37989ed5c5b6e60f572253019"
 zinit light Aloxaf/fzf-tab
 
-# OMZ libs (only essential ones, loaded with turbo)
-zinit wait lucid for \
-    OMZL::git.zsh \
-    OMZL::completion.zsh
-
-# OMZ plugins (turbo mode - deferred loading)
-zinit wait lucid for \
-    OMZP::git \
-    OMZP::aws \
-    OMZP::gh
+# Build-pinned Oh My Zsh libraries and plugins
+source "$ZSH/lib/git.zsh"
+source "$ZSH/lib/completion.zsh"
+source "$ZSH/plugins/git/git.plugin.zsh"
+source "$ZSH/plugins/aws/aws.plugin.zsh"
+source "$ZSH/plugins/gh/gh.plugin.zsh"
 
 # Syntax highlighting (load last, with turbo)
-zinit wait lucid for \
-    atinit"zicompinit; zicdreplay" \
+zinit wait lucid ver"3d574ccf48804b10dca52625df13da5edae7f553" for \
     zdharma-continuum/fast-syntax-highlighting
 
 # Tool initializations (synchronous - needed for prompt)
 eval "$(starship init zsh)"
 eval "$(zoxide init zsh --cmd cd)"
 
-# FZF (turbo)
-zinit wait lucid for \
-    atload"source <(fzf --zsh)" \
-    zdharma-continuum/null
+# FZF integration
+if [[ -t 0 && -t 1 ]]; then
+    source <(fzf --zsh)
+fi
 
 # Eza aliases (immediate, not deferred)
 alias l='eza -lah --icons --git --group-directories-first'
@@ -95,4 +93,3 @@ zstyle ':fzf-tab:complete:(ls|l|ll|la|lt|eza):*' fzf-preview '[[ -d $realpath ]]
 zstyle ':fzf-tab:*' fzf-flags --color=fg:1,fg+:2 --bind=tab:accept
 zstyle ':fzf-tab:*' use-fzf-default-opts yes
 zstyle ':fzf-tab:*' switch-group '<' '>'
-

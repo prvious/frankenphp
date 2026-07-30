@@ -1,33 +1,29 @@
-# Agent Guidelines for FrankenPHP Docker Images
+# Repository Guidelines
 
-## Build Commands
+## Project Structure & Module Organization
 
--   **Build all variants**: `docker buildx bake`
--   **Build specific variant**: `docker buildx bake runner-php-8-4-bookworm`
--   **Build with push**: `docker buildx bake --push`
--   **Print build matrix**: `docker buildx bake --print`
+This repository builds the `ghcr.io/prvious/frankenphp` development and production images. `Dockerfile` defines the binary/tool builders and the shared `base`, `dev`, and `prod` stages. `docker-bake.hcl` expands PHP versions and targets across `linux/amd64` and `linux/arm64`. Container behavior is configured by `.env`, `.zshrc`, and `.zshrc.prod`. Executable Laravel health checks live under `usr/local/bin/`. Image validation is centralized in `test.php`, while `.github/workflows/pipeline.yml` builds, tests, and publishes the matrix.
 
-## Test Commands
+## Build, Test, and Development Commands
 
--   **Test image**: `docker run --rm -it <image> php -v`
--   **Test container**: `docker run --rm -p 80:80 <image>`
--   **Run with shell**: `docker run --rm -it <image> bash`
+- `docker build --build-arg VERSION=8.5-trixie --target dev -t frankenphp:dev .` builds the local development image.
+- `docker build --build-arg VERSION=8.5-trixie --target prod -t frankenphp:prod .` builds the production image.
+- `docker buildx bake --print` inspects the default PHP 8.4/8.5 matrix; override `PHP_VERSION`, `SHA`, and `LATEST` to reproduce CI inputs.
+- `docker buildx bake` builds all configured variants and architectures.
+- `docker run --rm -v "$PWD/test.php:/app/test.php" frankenphp:dev php /app/test.php dev` validates extensions, binaries, and pnpm configuration. Substitute the production image and `production` for that target.
 
-## Available Aliases (from env.sh)
+## Coding Style & Naming Conventions
 
--   `pint` - Laravel Pint formatter: `./vendor/bin/pint`
--   `pa` - PHP Artisan: `php artisan`
--   `stan`/`phpstan` - PHPStan: `./vendor/bin/phpstan`
--   `pest` - Pest testing: `./vendor/bin/pest`
--   `amf` - Migrate fresh: `php artisan migrate:fresh`
--   `amfs` - Migrate fresh with seed: `php artisan migrate:fresh --seed`
+Use four-space indentation in PHP, HCL, and workflow YAML. Keep PHP strictly typed and follow the existing PSR-12-style class and method layout; use `camelCase` methods and `UPPER_SNAKE_CASE` constants. In Dockerfile steps, group related packages, use uppercase build arguments, quote shell variables, and clean package caches in the same layer. Health-check filenames use the `healthcheck-<service>` pattern; the Dockerfile copies them into the image as executable POSIX shell scripts.
 
-## Code Style Guidelines
+## Testing Guidelines
 
--   **HCL**: 4-space indentation, descriptive variables (e.g., `IMAGE_NAME`, `PHP_VERSION`)
--   **Shell**: Use `set -exo pipefail`, proper quoting, environment variable prefixes
--   **Docker**: Multi-platform builds (`linux/amd64`, `linux/arm64`), proper labels
--   **Tags**: Use semantic versioning, clean tag function for sanitization
--   **Functions**: HCL functions for reusable logic (tag generation, version parsing)
--   **Matrix builds**: Support multiple PHP versions and OS variants
--   **Labels**: Include OpenContainers standard labels with metadata
+There is no external test framework or coverage threshold. `test.php` is the acceptance suite. Update its expected extension and binary arrays whenever image contents change, then test both `dev` and `production`. For architecture-sensitive changes, run the Buildx matrix or rely on the PR workflow for both supported platforms.
+
+## Commit & Pull Request Guidelines
+
+Prefer short, imperative Conventional Commit subjects such as `feat: add healthcheck script`, `fix: correct pnpm path`, or `chore: remove package`; avoid `wip` commits in review-ready branches. Pull requests should explain the affected stage or variant, note tag/platform impact, link relevant issues, and list exact build and test commands with results. Screenshots are only useful for user-visible shell behavior.
+
+## Security & Configuration
+
+`.env` is copied into `/etc/profile.d/.env`; keep it limited to non-secret container defaults and aliases. Never commit registry tokens, credentials, or application secrets.
