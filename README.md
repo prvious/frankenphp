@@ -32,6 +32,8 @@ docker pull ghcr.io/prvious/frankenphp:php8.5
 
 ## Available Tags
 
+The entries below are current examples of the dynamically selected PHP minor tags:
+
 | Tag | Description |
 |-----|-------------|
 | `php8.5` | PHP 8.5 production |

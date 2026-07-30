@@ -226,7 +226,7 @@ COPY --from=binaries-builder --chown=0:0 /tmp/pnpm-store /usr/local/pnpm-store
 ENV PATH=/usr/local/node/bin:/usr/local/share/pnpm:/usr/local/share/pnpm/bin:/usr/local/share/pnpm-global/bin:$PATH
 
 # User creation and permissions
-RUN groupadd --force -g "${WWWGROUP}" "${USER}" \
+RUN groupadd --non-unique -g "${WWWGROUP}" "${USER}" \
     && useradd -m --no-user-group -o -g "${WWWGROUP}" -u "${WWWUSER}" -s /bin/zsh "${USER}" \
     && setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp \
     && mkdir -p \
