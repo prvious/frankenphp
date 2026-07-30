@@ -3,15 +3,18 @@ variable "IMAGE_NAME" {
 }
 
 variable "PHP_VERSION" {
-    description = "Comma-separated list of PHP versions to build, e.g. '8.1.0,8.2.0,8.3.0'."
+    description = "Comma-separated list of exact PHP versions to build, e.g. '8.4.23,8.5.8'."
+    default = "8.4.23,8.5.8"
 }
 
 variable "SHA" {
-    description = "The git commit SHA to use for the build."
+    description = "Git commit SHA for OCI revision labels; defaults to 'local' for local builds."
+    default = "local"
 }
 
 variable "LATEST" {
     description = "The latest PHP version to use for tagging the 'latest' tag."
+    default = "8.5.8"
 }
 
 function "clean_tag" {
@@ -33,7 +36,7 @@ function "tag" {
             // Latest tags for the LATEST PHP version
             pv == LATEST ? ["${IMAGE_NAME}:latest-${os}${variant == "dev" ? "-dev" : ""}"] : [],
             // Semver tags with OS and variant (only if version is not empty and semver returns results)
-            [for v in (semver(version)) : "${IMAGE_NAME}:php${v}-${os}${variant == "dev" ? "-dev" : ""}"],
+            [for v in (semver(version)) : "${IMAGE_NAME}:php${v}-${os}${variant == "dev" ? "-dev" : ""}" if v != split(".", version)[0] || php_version == LATEST],
         ])
     ]))
 }
@@ -60,7 +63,7 @@ function "php_version" {
 
 function "_php_version" {
     params = [v, m]
-    result = "${m.major}.${m.minor}" == "8.4" ? [v, "${m.major}.${m.minor}", "${m.major}"] : [v, "${m.major}.${m.minor}"]
+    result = [v, "${m.major}.${m.minor}"]
 }
 
 target "default" {
@@ -90,7 +93,7 @@ target "default" {
     }
     
     labels = {
-        "org.opencontainers.image.description" = variant == "dev" ? "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, sqlsrv, Xdebug, and a few other goodies." : "FrankenPHP Docker images (${os}) with supervisor, fnm(node version manager), pnpm, sqlsrv, and a few other goodies."
+        "org.opencontainers.image.description" = variant == "dev" ? "FrankenPHP Docker images (${os}) with supervisor, Node.js 26, pnpm, sqlsrv, Xdebug, and development tools." : "FrankenPHP Docker images (${os}) with supervisor, Node.js 26, pnpm, sqlsrv, and image tools."
         "org.opencontainers.image.created" = "${timestamp()}"
         "org.opencontainers.image.version" = variant == "dev" ? "${clean_tag(php_version)}-${os}-dev" : "${clean_tag(php_version)}-${os}"
         "org.opencontainers.image.revision" = SHA

@@ -7,8 +7,6 @@ const PNPM_MAJOR_VERSION = 11;
 
 const PRODUCTION_EXTENSIONS = ['mysqli', 'pdo_mysql', 'pgsql', 'pdo_pgsql', 'bcmath', 'gd', 'imagick', 'imap', 'pcntl', 'zip', 'intl', 'exif', 'ftp', 'xml', 'pdo_sqlsrv', 'sqlsrv', 'sockets'];
 
-const PRODUCTION_ONLY_EXTENSIONS = [];
-
 const DEV_ONLY_EXTENSIONS = ['xdebug'];
 
 const DEV_EXTENSIONS = [
@@ -16,15 +14,38 @@ const DEV_EXTENSIONS = [
     ...DEV_ONLY_EXTENSIONS,
 ];
 
-const PRODUCTION_BINARIES = ['php', 'composer', 'node', 'pnpm', 'jpegoptim', 'optipng', 'pngquant', 'gifsicle', 'ffmpeg', 'svgo', 'avifenc', 'zsh'];
+const PRODUCTION_BINARIES = ['php', 'composer', 'node', 'pnpm', 'psql', 'mysql', 'supervisord', 'jpegoptim', 'optipng', 'pngquant', 'gifsicle', 'ffmpeg', 'svgo', 'avifenc', 'zsh'];
 
-const PRODUCTION_ONLY_BINARIES = [];
-
-const DEV_ONLY_BINARIES = ['gh', 'eza', 'htop', 'nano', 'fzf', 'zoxide'];
+const DEV_ONLY_BINARIES = ['gh', 'eza', 'htop', 'nano', 'fzf', 'zoxide', 'starship', 'opencode'];
 
 const DEV_BINARIES = [
     ...PRODUCTION_BINARIES,
     ...DEV_ONLY_BINARIES,
+];
+
+const PRODUCTION_BINARY_CHECKS = [
+    'composer' => 'composer --version',
+    'psql' => 'psql --version',
+    'mysql' => 'mysql --version',
+    'supervisord' => 'supervisord --version',
+    'jpegoptim' => 'jpegoptim --version',
+    'optipng' => 'optipng -version',
+    'pngquant' => 'pngquant --version',
+    'gifsicle' => 'gifsicle --version',
+    'svgo' => 'svgo --version',
+    'avifenc' => 'avifenc --version',
+    'zsh' => 'zsh --version',
+];
+
+const DEV_ONLY_BINARY_CHECKS = [
+    'gh' => 'gh --version',
+    'eza' => 'eza --version',
+    'htop' => 'htop --version',
+    'nano' => 'nano --version',
+    'fzf' => 'fzf --version',
+    'zoxide' => 'zoxide --version',
+    'starship' => 'starship --version',
+    'opencode' => 'opencode --version',
 ];
 
 class Colors
@@ -72,14 +93,6 @@ class Runner
         echo "{$envText} {$header}\n";
     }
 
-    public function warn(string $message): void
-    {
-        $warnText = paint("[WARN]", Colors::BOLD . Colors::BRIGHT_YELLOW);
-        $messageText = paint($message, Colors::MAGENTA);
-
-        echo "{$warnText} {$messageText}\n";
-    }
-
     public function check(string $name, bool $passed, ?string $hint = null): void
     {
         if ($passed) {
@@ -114,6 +127,16 @@ class Runner
         }
 
         return is_string($output) && trim($output) !== '';
+    }
+
+    public function commandSucceeds(string $command): bool
+    {
+        $output = [];
+        $exitCode = 1;
+
+        @exec("{$command} >/dev/null 2>&1", $output, $exitCode);
+
+        return $exitCode === 0;
     }
 
     public function finish(): never
@@ -167,15 +190,11 @@ function extensions(Runner $runner): void
 
     if ($runner->environment === 'production') {
         foreach (DEV_ONLY_EXTENSIONS as $extension) {
-            if (extension_loaded($extension)) {
-                $runner->warn("extension:{$extension} present (unexpected in production)");
-            }
-        }
-    } else {
-        foreach (PRODUCTION_ONLY_EXTENSIONS as $extension) {
-            if (extension_loaded($extension)) {
-                $runner->warn("extension:{$extension} present (unexpected in dev)");
-            }
+            $runner->check(
+                "forbidden extension:{$extension}",
+                !extension_loaded($extension),
+                'must not be present in production'
+            );
         }
     }
 }
@@ -190,17 +209,25 @@ function binaries(Runner $runner): void
         $runner->check("binary:{$binary}", $runner->commandExists($binary));
     }
 
+    $binaryChecks = $runner->environment === 'dev'
+        ? [...PRODUCTION_BINARY_CHECKS, ...DEV_ONLY_BINARY_CHECKS]
+        : PRODUCTION_BINARY_CHECKS;
+
+    foreach ($binaryChecks as $binary => $command) {
+        $runner->check(
+            "binary executable:{$binary}",
+            $runner->commandSucceeds($command),
+            "command failed: {$command}"
+        );
+    }
+
     if ($runner->environment === 'production') {
         foreach (DEV_ONLY_BINARIES as $binary) {
-            if ($runner->commandExists($binary)) {
-                $runner->warn("binary:{$binary} present (unexpected in production)");
-            }
-        }
-    } else {
-        foreach (PRODUCTION_ONLY_BINARIES as $binary) {
-            if ($runner->commandExists($binary)) {
-                $runner->warn("binary:{$binary} present (unexpected in dev)");
-            }
+            $runner->check(
+                "forbidden binary:{$binary}",
+                !$runner->commandExists($binary),
+                'must not be present in production'
+            );
         }
     }
 }
@@ -226,14 +253,31 @@ function sanity(Runner $runner): void
         'expected ' . PNPM_MAJOR_VERSION . ".x, got {$pnpmVersion}"
     );
 
-    if ($runner->environment === 'dev') {
-        $pnpmStorePath = trim(@shell_exec('pnpm store path 2>/dev/null') ?? '');
-        $expectedPath = '/home/deploy/.pnpm-store';
-        $runner->check(
-            'pnpm store path',
-            str_starts_with($pnpmStorePath, $expectedPath),
-            "expected {$expectedPath}, got {$pnpmStorePath}"
-        );
+    $home = getenv('HOME') ?: '/home/deploy';
+    $pnpmStorePath = trim(@shell_exec('pnpm store path 2>/dev/null') ?? '');
+    $expectedPath = "{$home}/.pnpm-store";
+    $runner->check(
+        'pnpm store path',
+        str_starts_with($pnpmStorePath, $expectedPath),
+        "expected {$expectedPath}, got {$pnpmStorePath}"
+    );
+
+    $psyshPath = "{$home}/.config/psysh";
+    $runner->check(
+        'psysh config directory',
+        is_dir($psyshPath) && is_writable($psyshPath),
+        "expected writable directory {$psyshPath}"
+    );
+
+    $appProbe = @tempnam('/app', 'frankenphp-test-');
+    $runner->check(
+        'app directory writable',
+        is_string($appProbe),
+        'expected the runtime user to write to /app'
+    );
+
+    if (is_string($appProbe)) {
+        @unlink($appProbe);
     }
 }
 

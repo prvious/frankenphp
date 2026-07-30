@@ -6,15 +6,15 @@ This repository builds the `ghcr.io/prvious/frankenphp` development and producti
 
 ## Build, Test, and Development Commands
 
-- `docker build --build-arg VERSION=8.4 --target dev -t frankenphp:dev .` builds the local development image.
-- `docker build --build-arg VERSION=8.4 --target prod -t frankenphp:prod .` builds the production image.
-- `docker buildx bake --print` inspects the expanded build matrix; provide `PHP_VERSION`, `SHA`, and `LATEST` as CI does when required.
+- `docker build --build-arg VERSION=8.5-trixie --target dev -t frankenphp:dev .` builds the local development image.
+- `docker build --build-arg VERSION=8.5-trixie --target prod -t frankenphp:prod .` builds the production image.
+- `docker buildx bake --print` inspects the default PHP 8.4/8.5 matrix; override `PHP_VERSION`, `SHA`, and `LATEST` to reproduce CI inputs.
 - `docker buildx bake` builds all configured variants and architectures.
 - `docker run --rm -v "$PWD/test.php:/app/test.php" frankenphp:dev php /app/test.php dev` validates extensions, binaries, and pnpm configuration. Substitute the production image and `production` for that target.
 
 ## Coding Style & Naming Conventions
 
-Use four-space indentation in PHP, HCL, and workflow YAML. Keep PHP strictly typed and follow the existing PSR-12-style class and method layout; use `camelCase` methods and `UPPER_SNAKE_CASE` constants. In Dockerfile steps, group related packages, use uppercase build arguments, quote shell variables, and clean package caches in the same layer. Health-check filenames use the `healthcheck-<service>` pattern and must remain executable POSIX shell scripts.
+Use four-space indentation in PHP, HCL, and workflow YAML. Keep PHP strictly typed and follow the existing PSR-12-style class and method layout; use `camelCase` methods and `UPPER_SNAKE_CASE` constants. In Dockerfile steps, group related packages, use uppercase build arguments, quote shell variables, and clean package caches in the same layer. Health-check filenames use the `healthcheck-<service>` pattern; the Dockerfile copies them into the image as executable POSIX shell scripts.
 
 ## Testing Guidelines
 
