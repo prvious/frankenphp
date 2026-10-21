@@ -100,6 +100,16 @@ docker buildx bake
 PHP_VERSION=8.4,8.5 SHA="$(git rev-parse HEAD)" LATEST=8.5 docker buildx bake
 ```
 
+## Manually Rebuilding Published Images
+
+After this workflow change is integrated into the default branch (`main`), open **Actions → build image → Run workflow**, select `main`, and run it. You can also use:
+
+```bash
+gh workflow run pipeline.yml --ref main
+```
+
+Manual runs refresh floating dependencies like the daily scheduled build, build and test the full PHP/OS/variant/platform matrix, and publish the existing image tags after the tests pass. `pull = true` continues to fetch current base images. Manual runs selecting any other branch or tag are skipped to keep publication on `main`.
+
 ## Configuration
 
 The container runs as user `deploy` (UID 1000). Key paths:

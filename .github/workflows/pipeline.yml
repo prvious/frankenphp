@@ -15,16 +15,19 @@ on:
     schedule:
         - cron: "0 7 * * *"
 
+    workflow_dispatch:
+
 permissions:
     contents: read
 
 env:
     IMAGE_NAME: "ghcr.io/prvious/frankenphp"
-    REFRESH: ${{ github.event_name == 'schedule' && github.run_id || '' }}
+    REFRESH: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.run_id || '' }}
     SHA: ${{ github.sha }}
 
 jobs:
     prepare:
+        if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
         runs-on: ubuntu-24.04
         outputs:
             variants: ${{ steps.matrix.outputs.variants }}
