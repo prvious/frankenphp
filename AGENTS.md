@@ -8,7 +8,7 @@ This repository builds the `ghcr.io/prvious/frankenphp` development and producti
 
 - `docker build --build-arg VERSION=8.5-trixie --target dev -t frankenphp:dev .` builds the local development image.
 - `docker build --build-arg VERSION=8.5-trixie --target prod -t frankenphp:prod .` builds the production image.
-- `docker buildx bake --print` inspects the default PHP 8.4/8.5 matrix; override `PHP_VERSION`, `SHA`, and `LATEST` to reproduce CI inputs.
+- `docker buildx bake --print` inspects the default PHP 8.4/8.5 minor-version matrix; override `PHP_VERSION`, `LATEST`, `SHA`, and `REFRESH` when testing matrix or dependency-refresh changes.
 - `docker buildx bake` builds all configured variants and architectures.
 - `docker run --rm -v "$PWD/test.php:/app/test.php" frankenphp:dev php /app/test.php dev` validates extensions, binaries, and pnpm configuration. Substitute the production image and `production` for that target.
 
