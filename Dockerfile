@@ -127,6 +127,9 @@ FROM base AS dev
 
 ARG REFRESH
 ARG TARGETARCH
+ARG ZOXIDE_VERSION
+ARG STARSHIP_VERSION=latest
+ARG OPENCODE_VERSION
 
 # Install current development tools through their supported release channels
 RUN echo "${REFRESH}" > /dev/null \
@@ -150,15 +153,29 @@ RUN echo "${REFRESH}" > /dev/null \
     && /tmp/fzf/install --bin \
     && install -m 0755 /tmp/fzf/bin/fzf /usr/local/bin/fzf \
     && curl -fsSL https://raw.githubusercontent.com/starship/starship/master/install/install.sh \
-        | sh -s -- --yes --bin-dir /usr/local/bin \
-    && curl -fsSL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh \
-        | sh -s -- --bin-dir /usr/local/bin --man-dir /usr/local/share/man \
+        | sh -s -- --yes --bin-dir /usr/local/bin --version "${STARSHIP_VERSION}" \
     && case "${TARGETARCH}" in \
-        amd64) OPENCODE_ARCH="x64" ;; \
-        arm64) OPENCODE_ARCH="arm64" ;; \
+        amd64) OPENCODE_ARCH="x64"; ZOXIDE_ARCH="x86_64" ;; \
+        arm64) OPENCODE_ARCH="arm64"; ZOXIDE_ARCH="aarch64" ;; \
         *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac \
-    && curl -fsSL "https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux-${OPENCODE_ARCH}.tar.gz" \
+    && if [ -n "${ZOXIDE_VERSION}" ]; then \
+        mkdir -p /tmp/zoxide /usr/local/share/man/man1 \
+        && curl -fsSL "https://github.com/ajeetdsouza/zoxide/releases/download/${ZOXIDE_VERSION}/zoxide-${ZOXIDE_VERSION#v}-${ZOXIDE_ARCH}-unknown-linux-musl.tar.gz" \
+            | tar -xz -C /tmp/zoxide \
+        && install -m 0755 /tmp/zoxide/zoxide /usr/local/bin/zoxide \
+        && cp /tmp/zoxide/man/man1/* /usr/local/share/man/man1/ \
+        && rm -rf /tmp/zoxide; \
+    else \
+        curl -fsSL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh \
+            | sh -s -- --bin-dir /usr/local/bin --man-dir /usr/local/share/man; \
+    fi \
+    && if [ -n "${OPENCODE_VERSION}" ]; then \
+        OPENCODE_RELEASE="download/${OPENCODE_VERSION}"; \
+    else \
+        OPENCODE_RELEASE="latest/download"; \
+    fi \
+    && curl -fsSL "https://github.com/anomalyco/opencode/releases/${OPENCODE_RELEASE}/opencode-linux-${OPENCODE_ARCH}.tar.gz" \
         | tar -xz -C /usr/local/bin \
     && apt-get clean \
     && rm -rf /tmp/fzf /var/lib/apt/lists/*

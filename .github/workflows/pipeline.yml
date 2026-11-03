@@ -33,9 +33,26 @@ jobs:
             variants: ${{ steps.matrix.outputs.variants }}
             platforms: ${{ steps.matrix.outputs.platforms }}
             metadata: ${{ steps.matrix.outputs.metadata }}
+            zoxide_version: ${{ steps.releases.outputs.zoxide_version }}
+            starship_version: ${{ steps.releases.outputs.starship_version }}
+            opencode_version: ${{ steps.releases.outputs.opencode_version }}
 
         steps:
             - uses: actions/checkout@v4
+
+            - name: Resolve latest development tool releases
+              id: releases
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  zoxide_version="$(gh api repos/ajeetdsouza/zoxide/releases/latest --jq '.tag_name')"
+                  starship_version="$(gh api repos/starship/starship/releases/latest --jq '.tag_name')"
+                  opencode_version="$(gh api repos/anomalyco/opencode/releases/latest --jq '.tag_name')"
+                  {
+                    echo "zoxide_version=${zoxide_version}"
+                    echo "starship_version=${starship_version}"
+                    echo "opencode_version=${opencode_version}"
+                  } >> "${GITHUB_OUTPUT}"
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
@@ -97,6 +114,9 @@ jobs:
                   push: ${{ github.event_name != 'pull_request' }}
                   targets: runner-${{ matrix.variant }}
                   set: |
+                      *.args.ZOXIDE_VERSION=${{ needs.prepare.outputs.zoxide_version }}
+                      *.args.STARSHIP_VERSION=${{ needs.prepare.outputs.starship_version }}
+                      *.args.OPENCODE_VERSION=${{ needs.prepare.outputs.opencode_version }}
                       *.tags=
                       *.platform=${{ matrix.platform }}
                       *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
