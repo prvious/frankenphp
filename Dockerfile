@@ -128,6 +128,8 @@ FROM base AS dev
 ARG REFRESH
 ARG TARGETARCH
 ARG ZOXIDE_VERSION
+ARG STARSHIP_VERSION=latest
+ARG OPENCODE_VERSION
 
 # Install current development tools through their supported release channels
 RUN echo "${REFRESH}" > /dev/null \
@@ -151,7 +153,7 @@ RUN echo "${REFRESH}" > /dev/null \
     && /tmp/fzf/install --bin \
     && install -m 0755 /tmp/fzf/bin/fzf /usr/local/bin/fzf \
     && curl -fsSL https://raw.githubusercontent.com/starship/starship/master/install/install.sh \
-        | sh -s -- --yes --bin-dir /usr/local/bin \
+        | sh -s -- --yes --bin-dir /usr/local/bin --version "${STARSHIP_VERSION}" \
     && case "${TARGETARCH}" in \
         amd64) OPENCODE_ARCH="x64"; ZOXIDE_ARCH="x86_64" ;; \
         arm64) OPENCODE_ARCH="arm64"; ZOXIDE_ARCH="aarch64" ;; \
@@ -168,7 +170,12 @@ RUN echo "${REFRESH}" > /dev/null \
         curl -fsSL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh \
             | sh -s -- --bin-dir /usr/local/bin --man-dir /usr/local/share/man; \
     fi \
-    && curl -fsSL "https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux-${OPENCODE_ARCH}.tar.gz" \
+    && if [ -n "${OPENCODE_VERSION}" ]; then \
+        OPENCODE_RELEASE="download/${OPENCODE_VERSION}"; \
+    else \
+        OPENCODE_RELEASE="latest/download"; \
+    fi \
+    && curl -fsSL "https://github.com/anomalyco/opencode/releases/${OPENCODE_RELEASE}/opencode-linux-${OPENCODE_ARCH}.tar.gz" \
         | tar -xz -C /usr/local/bin \
     && apt-get clean \
     && rm -rf /tmp/fzf /var/lib/apt/lists/*
