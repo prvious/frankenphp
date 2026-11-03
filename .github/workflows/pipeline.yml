@@ -33,9 +33,18 @@ jobs:
             variants: ${{ steps.matrix.outputs.variants }}
             platforms: ${{ steps.matrix.outputs.platforms }}
             metadata: ${{ steps.matrix.outputs.metadata }}
+            zoxide_version: ${{ steps.zoxide.outputs.version }}
 
         steps:
             - uses: actions/checkout@v4
+
+            - name: Resolve latest zoxide release
+              id: zoxide
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  version="$(gh api repos/ajeetdsouza/zoxide/releases/latest --jq '.tag_name')"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
@@ -97,6 +106,7 @@ jobs:
                   push: ${{ github.event_name != 'pull_request' }}
                   targets: runner-${{ matrix.variant }}
                   set: |
+                      *.args.ZOXIDE_VERSION=${{ needs.prepare.outputs.zoxide_version }}
                       *.tags=
                       *.platform=${{ matrix.platform }}
                       *.cache-from=type=gha,scope=${{ matrix.variant }}-${{ github.ref }}-${{ matrix.platform }}
