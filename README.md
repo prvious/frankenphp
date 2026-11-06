@@ -108,7 +108,18 @@ After this workflow change is integrated into the default branch (`main`), open 
 gh workflow run pipeline.yml --ref main
 ```
 
-Manual runs refresh floating dependencies like the daily scheduled build, build and test the full PHP/OS/variant/platform matrix, and publish the existing image tags after the tests pass. `pull = true` continues to fetch current base images. Manual runs selecting any other branch or tag are skipped to keep publication on `main`.
+Manual runs refresh floating dependencies, build and test the full PHP/OS/variant/platform matrix, and publish the existing image tags after the tests pass. `pull = true` continues to fetch current base images. Manual runs selecting any other branch or tag are skipped to keep publication on `main`.
+
+## Scheduled Builds
+
+The daily build always rebuilds the development images. It rebuilds and republishes the production images only when something under them changed, so servers running them do not pull new layers for nothing:
+
+- a new `dunglas/frankenphp` image for that PHP version and Debian release,
+- a pending update for an installed Debian or PostgreSQL package (a refresh then upgrades every package, including the upstream image's),
+- a new Node 26, pnpm 11 or svgo release,
+- and every Monday regardless, for new PHP extension and Composer releases.
+
+`.github/scripts/plan-scheduled-build.sh` makes that decision and writes its reasons to the run's summary. If it cannot decide, every image is rebuilt.
 
 ## Configuration
 
