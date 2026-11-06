@@ -89,13 +89,16 @@ RUN install-php-extensions \
         sqlsrv \
         sockets
 
-# Copy runtime configuration and major-channel artifacts after the expensive package layers
-COPY ./.env /etc/profile.d/.env
-COPY --chown=0:0 --chmod=755 ./usr/local/bin/* /usr/local/bin/
-COPY --from=composer-builder --chown=0:0 --chmod=755 /usr/bin/composer /usr/bin/composer
-COPY --from=node-builder --chown=0:0 --chmod=755 /usr/local/bin/node /usr/local/bin/node
-COPY --from=node-builder --chown=0:0 /usr/local/lib/node_modules/pnpm /usr/local/lib/node_modules/pnpm
-COPY --from=node-builder --chown=0:0 /usr/local/lib/node_modules/svgo /usr/local/lib/node_modules/svgo
+# Copy runtime configuration and major-channel artifacts after the expensive package layers.
+# --link makes each layer independent of the ones below it, so a refresh of the
+# package layers keeps these (Node alone is 51 MB compressed) and nodes that run
+# the image need not pull them again.
+COPY --link ./.env /etc/profile.d/.env
+COPY --link --chown=0:0 --chmod=755 ./usr/local/bin/* /usr/local/bin/
+COPY --link --from=composer-builder --chown=0:0 --chmod=755 /usr/bin/composer /usr/bin/composer
+COPY --link --from=node-builder --chown=0:0 --chmod=755 /usr/local/bin/node /usr/local/bin/node
+COPY --link --from=node-builder --chown=0:0 /usr/local/lib/node_modules/pnpm /usr/local/lib/node_modules/pnpm
+COPY --link --from=node-builder --chown=0:0 /usr/local/lib/node_modules/svgo /usr/local/lib/node_modules/svgo
 
 # User creation and permissions. The upstream image already lets frankenphp bind
 # ports below 1024 (cap_net_bind_service); setting the capability again would
