@@ -97,13 +97,14 @@ COPY --from=node-builder --chown=0:0 --chmod=755 /usr/local/bin/node /usr/local/
 COPY --from=node-builder --chown=0:0 /usr/local/lib/node_modules/pnpm /usr/local/lib/node_modules/pnpm
 COPY --from=node-builder --chown=0:0 /usr/local/lib/node_modules/svgo /usr/local/lib/node_modules/svgo
 
-# User creation and permissions
+# User creation and permissions. The upstream image already lets frankenphp bind
+# ports below 1024 (cap_net_bind_service); setting the capability again would
+# copy the whole binary (60 MB) into this layer.
 RUN ln -s ../lib/node_modules/pnpm/bin/pnpm.mjs /usr/local/bin/pnpm \
     && ln -s ../lib/node_modules/pnpm/bin/pnpx.mjs /usr/local/bin/pnpx \
     && ln -s ../lib/node_modules/svgo/bin/svgo.js /usr/local/bin/svgo \
     && groupadd --non-unique -g "${WWWGROUP}" "${USER}" \
     && useradd -m --no-user-group -o -g "${WWWGROUP}" -u "${WWWUSER}" -s /bin/zsh "${USER}" \
-    && setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp \
     && mkdir -p \
         "/home/${USER}/.config/psysh" \
         "/home/${USER}/.local/bin" \
