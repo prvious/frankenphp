@@ -30,7 +30,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
         runs-on: ubuntu-24.04
         outputs:
-            variants: ${{ steps.matrix.outputs.variants }}
+            variants: ${{ steps.plan.outputs.variants || steps.matrix.outputs.variants }}
             platforms: ${{ steps.matrix.outputs.platforms }}
             metadata: ${{ steps.matrix.outputs.metadata }}
             zoxide_version: ${{ steps.releases.outputs.zoxide_version }}
@@ -68,6 +68,30 @@ jobs:
                     echo variants="$(jq -c '[.target | keys[] | select(startswith("runner-")) | sub("^runner-"; "")] | unique' <<< "${METADATA}")"
                     echo platforms="$(jq -c 'first(.target[]) | .platforms' <<< "${METADATA}")"
                   } >> "${GITHUB_OUTPUT}"
+
+            # A scheduled build republishes the production variants only when
+            # something under them changed (see the script), so servers do not
+            # pull a new 300 MB of layers every day. If the plan itself fails,
+            # every variant is rebuilt, as before.
+            - name: Plan the scheduled build
+              id: plan
+              if: github.event_name == 'schedule'
+              shell: bash
+              env:
+                  METADATA: ${{ steps.matrix.outputs.metadata }}
+                  ALL_VARIANTS: ${{ steps.matrix.outputs.variants }}
+              run: |
+                  printf '%s' "${METADATA}" > "${RUNNER_TEMP}/bake.json"
+
+                  if variants="$(.github/scripts/plan-scheduled-build.sh "${RUNNER_TEMP}/bake.json" 2> "${RUNNER_TEMP}/plan.log")"; then
+                    cat "${RUNNER_TEMP}/plan.log" >> "${GITHUB_STEP_SUMMARY}"
+                  else
+                    cat "${RUNNER_TEMP}/plan.log"
+                    echo "Could not plan the build; rebuilding every variant." >> "${GITHUB_STEP_SUMMARY}"
+                    variants="${ALL_VARIANTS}"
+                  fi
+
+                  echo "variants=${variants}" >> "${GITHUB_OUTPUT}"
 
     build:
         runs-on: ${{ startsWith(matrix.platform, 'linux/arm') && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}

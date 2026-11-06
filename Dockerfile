@@ -35,9 +35,13 @@ ENV SERVER_NAME=:80
 ENV DEBIAN_FRONTEND=noninteractive
 ENV pnpm_config_store_dir=/home/${USER}/.pnpm-store
 
-# Install shared runtime packages and image tools from the target Debian suite
+# Install shared runtime packages and image tools from the target Debian suite.
+# A refresh (REFRESH set) also upgrades what the upstream image installed:
+# installing the listed packages alone would leave its libraries as they were.
 RUN echo "${REFRESH}" > /dev/null \
     && apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+        -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -89,21 +93,25 @@ RUN install-php-extensions \
         sqlsrv \
         sockets
 
-# Copy runtime configuration and major-channel artifacts after the expensive package layers
-COPY ./.env /etc/profile.d/.env
-COPY --chown=0:0 --chmod=755 ./usr/local/bin/* /usr/local/bin/
-COPY --from=composer-builder --chown=0:0 --chmod=755 /usr/bin/composer /usr/bin/composer
-COPY --from=node-builder --chown=0:0 --chmod=755 /usr/local/bin/node /usr/local/bin/node
-COPY --from=node-builder --chown=0:0 /usr/local/lib/node_modules/pnpm /usr/local/lib/node_modules/pnpm
-COPY --from=node-builder --chown=0:0 /usr/local/lib/node_modules/svgo /usr/local/lib/node_modules/svgo
+# Copy runtime configuration and major-channel artifacts after the expensive package layers.
+# --link makes each layer independent of the ones below it, so a refresh of the
+# package layers keeps these (Node alone is 51 MB compressed) and nodes that run
+# the image need not pull them again.
+COPY --link ./.env /etc/profile.d/.env
+COPY --link --chown=0:0 --chmod=755 ./usr/local/bin/* /usr/local/bin/
+COPY --link --from=composer-builder --chown=0:0 --chmod=755 /usr/bin/composer /usr/bin/composer
+COPY --link --from=node-builder --chown=0:0 --chmod=755 /usr/local/bin/node /usr/local/bin/node
+COPY --link --from=node-builder --chown=0:0 /usr/local/lib/node_modules/pnpm /usr/local/lib/node_modules/pnpm
+COPY --link --from=node-builder --chown=0:0 /usr/local/lib/node_modules/svgo /usr/local/lib/node_modules/svgo
 
-# User creation and permissions
+# User creation and permissions. The upstream image already lets frankenphp bind
+# ports below 1024 (cap_net_bind_service); setting the capability again would
+# copy the whole binary (60 MB) into this layer.
 RUN ln -s ../lib/node_modules/pnpm/bin/pnpm.mjs /usr/local/bin/pnpm \
     && ln -s ../lib/node_modules/pnpm/bin/pnpx.mjs /usr/local/bin/pnpx \
     && ln -s ../lib/node_modules/svgo/bin/svgo.js /usr/local/bin/svgo \
     && groupadd --non-unique -g "${WWWGROUP}" "${USER}" \
     && useradd -m --no-user-group -o -g "${WWWGROUP}" -u "${WWWUSER}" -s /bin/zsh "${USER}" \
-    && setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp \
     && mkdir -p \
         "/home/${USER}/.config/psysh" \
         "/home/${USER}/.local/bin" \
@@ -211,8 +219,23 @@ WORKDIR /app
 
 FROM base AS prod
 
+# Production PHP defaults, read by conf.d/10-production.ini. An app overrides any
+# of them by setting the variable on its container. The names follow the
+# serversideup/php images.
+ENV PHP_OPCACHE_ENABLE=1 \
+    PHP_OPCACHE_MEMORY_CONSUMPTION=256 \
+    PHP_OPCACHE_INTERNED_STRINGS_BUFFER=32 \
+    PHP_OPCACHE_MAX_ACCELERATED_FILES=32531 \
+    PHP_OPCACHE_VALIDATE_TIMESTAMPS=0 \
+    PHP_OPCACHE_REVALIDATE_FREQ=2 \
+    PHP_REALPATH_CACHE_SIZE=4096K \
+    PHP_REALPATH_CACHE_TTL=600 \
+    PHP_SESSION_UPLOAD_PROGRESS_ENABLED=0
+
 # Use production PHP configuration
 RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+
+COPY --link ./usr/local/etc/php/conf.d/10-production.ini /usr/local/etc/php/conf.d/10-production.ini
 
 # Copy production zshrc
 COPY --chown=${USER}:${USER} ./.zshrc.prod /home/${USER}/.zshrc
