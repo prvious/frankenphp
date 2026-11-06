@@ -35,9 +35,13 @@ ENV SERVER_NAME=:80
 ENV DEBIAN_FRONTEND=noninteractive
 ENV pnpm_config_store_dir=/home/${USER}/.pnpm-store
 
-# Install shared runtime packages and image tools from the target Debian suite
+# Install shared runtime packages and image tools from the target Debian suite.
+# A refresh (REFRESH set) also upgrades what the upstream image installed:
+# installing the listed packages alone would leave its libraries as they were.
 RUN echo "${REFRESH}" > /dev/null \
     && apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+        -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
