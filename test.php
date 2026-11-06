@@ -281,6 +281,40 @@ function sanity(Runner $runner): void
     }
 }
 
+/**
+ * The production PHP defaults from conf.d/10-production.ini, as the prod
+ * stage's environment sets them.
+ */
+const PRODUCTION_INI = [
+    'opcache.enable' => '1',
+    'opcache.memory_consumption' => '256',
+    'opcache.interned_strings_buffer' => '32',
+    'opcache.max_accelerated_files' => '32531',
+    'opcache.validate_timestamps' => '0',
+    'realpath_cache_ttl' => '600',
+    'session.upload_progress.enabled' => '0',
+];
+
+function productionSettings(Runner $runner): void
+{
+    $runner->printHeader("⚙️", "Checking Production PHP Settings");
+
+    foreach (PRODUCTION_INI as $setting => $expected) {
+        $actual = (string) ini_get($setting);
+        $runner->check("ini:{$setting}", $actual === $expected, "expected {$expected}, got {$actual}");
+    }
+
+    $runner->check('ini:expose_php', !ini_get('expose_php'), 'expected Off');
+
+    // An app tunes a default by setting the variable on its container.
+    $override = trim(@shell_exec('PHP_OPCACHE_MEMORY_CONSUMPTION=384 php -r ' . escapeshellarg('echo ini_get("opcache.memory_consumption");') . ' 2>/dev/null') ?? '');
+    $runner->check('ini overridable by environment', $override === '384', "expected 384, got {$override}");
+
+    // The runtime user serves on port 80, which takes this file capability.
+    $capabilities = (string) @shell_exec('getcap /usr/local/bin/frankenphp 2>/dev/null');
+    $runner->check('frankenphp may bind port 80', str_contains($capabilities, 'cap_net_bind_service'), "got: {$capabilities}");
+}
+
 function go(): never
 {
     global $argv;
@@ -298,6 +332,10 @@ function go(): never
     extensions($runner);
     binaries($runner);
     sanity($runner);
+
+    if ($environment === 'production') {
+        productionSettings($runner);
+    }
 
     $runner->finish();
 }

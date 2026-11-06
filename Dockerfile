@@ -219,8 +219,23 @@ WORKDIR /app
 
 FROM base AS prod
 
+# Production PHP defaults, read by conf.d/10-production.ini. An app overrides any
+# of them by setting the variable on its container. The names follow the
+# serversideup/php images.
+ENV PHP_OPCACHE_ENABLE=1 \
+    PHP_OPCACHE_MEMORY_CONSUMPTION=256 \
+    PHP_OPCACHE_INTERNED_STRINGS_BUFFER=32 \
+    PHP_OPCACHE_MAX_ACCELERATED_FILES=32531 \
+    PHP_OPCACHE_VALIDATE_TIMESTAMPS=0 \
+    PHP_OPCACHE_REVALIDATE_FREQ=2 \
+    PHP_REALPATH_CACHE_SIZE=4096K \
+    PHP_REALPATH_CACHE_TTL=600 \
+    PHP_SESSION_UPLOAD_PROGRESS_ENABLED=0
+
 # Use production PHP configuration
 RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+
+COPY --link ./usr/local/etc/php/conf.d/10-production.ini /usr/local/etc/php/conf.d/10-production.ini
 
 # Copy production zshrc
 COPY --chown=${USER}:${USER} ./.zshrc.prod /home/${USER}/.zshrc

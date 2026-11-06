@@ -124,6 +124,24 @@ Environment variables:
 - `SERVER_NAME=:80` - Caddy server name
 - `TZ=UTC` - Timezone
 
+### Production PHP Settings
+
+The production images add `conf.d/10-production.ini`. Each setting reads an environment variable, so an app changes it on its container instead of shipping an ini file:
+
+| Variable | Default | Setting |
+|----------|---------|---------|
+| `PHP_OPCACHE_ENABLE` | `1` | `opcache.enable` |
+| `PHP_OPCACHE_MEMORY_CONSUMPTION` | `256` | `opcache.memory_consumption` (MB) |
+| `PHP_OPCACHE_INTERNED_STRINGS_BUFFER` | `32` | `opcache.interned_strings_buffer` (MB) |
+| `PHP_OPCACHE_MAX_ACCELERATED_FILES` | `32531` | `opcache.max_accelerated_files` |
+| `PHP_OPCACHE_VALIDATE_TIMESTAMPS` | `0` | `opcache.validate_timestamps` |
+| `PHP_OPCACHE_REVALIDATE_FREQ` | `2` | `opcache.revalidate_freq` (only with timestamps on) |
+| `PHP_REALPATH_CACHE_SIZE` | `4096K` | `realpath_cache_size` |
+| `PHP_REALPATH_CACHE_TTL` | `600` | `realpath_cache_ttl` (seconds) |
+| `PHP_SESSION_UPLOAD_PROGRESS_ENABLED` | `0` | `session.upload_progress.enabled` |
+
+`expose_php` is always `Off`. With `PHP_OPCACHE_VALIDATE_TIMESTAMPS=0`, PHP never notices a changed PHP file: deploy a new container rather than editing files in a running one, and set it to `1` where code is mounted from the host. The file leaves memory, upload, post and execution-time limits alone, because PHP reads `conf.d` after `php.ini` and would override what apps set in their own `php.ini`.
+
 ## License
 
 [MIT](LICENSE)
