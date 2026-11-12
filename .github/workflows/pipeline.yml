@@ -131,10 +131,12 @@ jobs:
             - name: Create tarball directory
               run: mkdir -p /tmp/images
 
+            # Retry transient network failures fetching PECL, apt, or GitHub downloads.
             - name: Build
               id: build
+              continue-on-error: true
               uses: docker/bake-action@v6
-              with:
+              with: &bake
                   push: ${{ github.event_name != 'pull_request' }}
                   targets: runner-${{ matrix.variant }}
                   set: |
@@ -158,6 +160,12 @@ jobs:
                       *.output=type=docker,name=frankenphp:test,dest=/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar
                       ${{ github.event_name != 'pull_request' && format('*.output=type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE_NAME) || '' }}
 
+            - name: Retry build
+              id: build-retry
+              if: steps.build.outcome == 'failure'
+              uses: docker/bake-action@v6
+              with: *bake
+
             - name: Upload image artifact
               uses: actions/upload-artifact@v4
               with:
@@ -175,7 +183,7 @@ jobs:
                   runnerDigest=$(jq -r '."runner-${{ matrix.variant }}"."containerimage.digest"' <<< "${METADATA}")
                   touch "/tmp/metadata/runner/${runnerDigest#sha256:}"
               env:
-                  METADATA: ${{ steps.build.outputs.metadata }}
+                  METADATA: ${{ steps.build-retry.outputs.metadata || steps.build.outputs.metadata }}
 
             - name: Upload runner metadata
               if: github.event_name != 'pull_request'
