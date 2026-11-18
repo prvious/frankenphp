@@ -73,7 +73,7 @@ while IFS=$'\t' read -r os tag; do
     if [[ "${count}" -gt 0 ]]; then
         reasons+=("${count} package update(s) for ${os}")
     fi
-done < <(jq -r '[.target[] | select(.target == "prod") | {os: (.args.VERSION | split("-")[1]), tag: .tags[0]}] | unique_by(.os)[] | [.os, .tag] | @tsv' "$metadata")
+done < <(jq -r '[.target[] | select(.target == "prod") | {os: .args.DEBIAN_SUITE, tag: .tags[0]}] | unique_by(.os)[] | [.os, .tag] | @tsv' "$metadata")
 
 # 3. Node, pnpm and svgo, against the latest releases of the lines the
 #    Dockerfile installs.

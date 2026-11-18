@@ -21,8 +21,7 @@ RUN printf 'Package: php*\nPin: release *\nPin-Priority: -1\n' > /etc/apt/prefer
     && rm -rf /var/lib/apt/lists/*
 
 FROM php-build-base AS php-builder
-ARG DEBIAN_SUITE
-ARG VERSION=8.5-trixie
+ARG PHP_MINOR=""
 ARG PHP_VERSION=""
 ARG PHP_SHA256=""
 

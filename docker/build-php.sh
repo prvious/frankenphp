@@ -3,8 +3,7 @@
 set -euo pipefail
 set -x
 
-minor="${PHP_VERSION%.*}"
-case "$minor" in
+case "$PHP_MINOR" in
     8.4)
         keys=(AFD8691FDAEDF03BDF6E460563F15A9B715376CA 9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6 0616E93D95AF471243E26761770426E17EBBB3DD)
         ;;
@@ -12,15 +11,15 @@ case "$minor" in
         keys=(1198C0117593497A5EC5C199286AF1F9897469DC 49D9AF6BC72A80D6691719C8AA23F5BE9C7097D4 D95C03BC702BE9515344AE3374E44BC9067701A5)
         ;;
     *)
-        echo "Unsupported or missing PHP_VERSION: ${PHP_VERSION}" >&2
+        echo "No release signing keys configured for PHP_MINOR=${PHP_MINOR}." >&2
         exit 1
         ;;
 esac
 
-if [[ ! "$PHP_VERSION" =~ ^8\.[45]\.[0-9]+$ ||
+if [[ ! "$PHP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ||
       ! "$PHP_SHA256" =~ ^[a-f0-9]{64}$ ||
-      "$VERSION" != "${minor}-${DEBIAN_SUITE}" ]]; then
-    echo "PHP_VERSION and PHP_SHA256 must describe a stable release for VERSION=${VERSION} on ${DEBIAN_SUITE}. Run the source resolver first." >&2
+      "${PHP_VERSION%.*}" != "$PHP_MINOR" ]]; then
+    echo "PHP_VERSION and PHP_SHA256 must describe a stable PHP ${PHP_MINOR} release. Run the source resolver first." >&2
     exit 1
 fi
 
@@ -29,22 +28,19 @@ url="https://www.php.net/distributions/php-${PHP_VERSION}.tar.xz"
 curl --retry 3 -fsSL -o /usr/src/php.tar.xz "$url"
 echo "${PHP_SHA256}  /usr/src/php.tar.xz" | sha256sum --check --strict
 
-# Official PHP release signing fingerprints: https://www.php.net/gpg-keys.php
-# The temporary verification keyring contains only the pinned fingerprints.
+# Verify the signature with php.net's keyring, then match the primary signer
+# against the pinned fingerprints for this PHP minor.
 export GNUPGHOME="$(mktemp -d)"
 trap 'rm -rf "$GNUPGHOME"' EXIT
 curl --retry 3 -fsSL -o "$GNUPGHOME/php.asc" "${url}.asc"
-for key in "${keys[@]}"; do
-    curl --retry 3 -fsSL -o "$GNUPGHOME/key.asc" \
-        "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${key}"
-    fingerprint="$(gpg --batch --with-colons --show-keys "$GNUPGHOME/key.asc" | awk -F: '
-        $1 == "pub" { primary = 1; next }
-        $1 == "fpr" && primary { print $10; primary = 0 }
-    ')"
-    [[ "$fingerprint" == "$key" ]]
-    gpg --batch --dearmor < "$GNUPGHOME/key.asc" >> "$GNUPGHOME/release-keys.gpg"
-done
-gpgv --keyring "$GNUPGHOME/release-keys.gpg" "$GNUPGHOME/php.asc" /usr/src/php.tar.xz
+curl --retry 3 -fsSL -o "$GNUPGHOME/php-keyring.asc" https://www.php.net/distributions/php-keyring.gpg
+gpg --batch --dearmor -o "$GNUPGHOME/php-keyring.gpg" "$GNUPGHOME/php-keyring.asc"
+signature="$(gpgv --status-fd 1 --keyring "$GNUPGHOME/php-keyring.gpg" "$GNUPGHOME/php.asc" /usr/src/php.tar.xz)"
+signer="$(awk '$1 == "[GNUPG:]" && $2 == "VALIDSIG" { print $NF }' <<< "$signature")"
+if [[ " ${keys[*]} " != *" $signer "* ]]; then
+    echo "Unexpected release signer for PHP ${PHP_VERSION}: ${signer:-unknown}" >&2
+    exit 1
+fi
 
 docker-php-source extract
 cd /usr/src/php
@@ -58,7 +54,7 @@ multiarch="$(dpkg-architecture --query DEB_BUILD_MULTIARCH)"
 # interface so existing PHP configuration and downstream extension builds work.
 # OPcache is shared in PHP 8.4 and built in from PHP 8.5.
 opcache=()
-if [[ "$minor" == 8.4 ]]; then
+if [[ "$PHP_MINOR" == 8.4 ]]; then
     opcache=(--enable-opcache=shared)
 fi
 
@@ -99,11 +95,10 @@ cp php.ini-development php.ini-production "$PHP_INI_DIR/"
 install -D -m 0644 LICENSE /usr/local/share/licenses/php/LICENSE
 ldconfig
 docker-php-ext-enable sodium
-if [[ "$minor" == 8.4 ]]; then
+if [[ "$PHP_MINOR" == 8.4 ]]; then
     docker-php-ext-enable opcache
 fi
 php -r 'exit(PHP_ZTS && PHP_VERSION === getenv("PHP_VERSION") && extension_loaded("Zend OPcache") ? 0 : 1);'
-pecl update-channels
 rm -rf /tmp/pear /root/.pearrc
 cd /
 docker-php-source delete

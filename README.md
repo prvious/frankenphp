@@ -86,20 +86,21 @@ healthcheck-schedule  # Check scheduler
 
 ## Building Locally
 
-Docker Buildx, Bash, curl and jq are required. Resolve source releases once, then pass the
-result to Bake. The resolver reads PHP's release metadata and SHA-256 checksums
-from php.net and the stable FrankenPHP tag and commit from GitHub. Set
-`GH_TOKEN` if GitHub's anonymous API rate limit is a problem.
+Docker Buildx, Bash, curl and jq are required. Build and load `frankenphp:dev` for your local platform:
+
+```bash
+bash docker/build-local.sh
+```
+
+The local build uses Trixie and the PHP minor behind the `latest-dev` tag.
+Set `LATEST=8.4` to select PHP 8.4 and `GH_TOKEN` if GitHub's anonymous API rate limit is a problem.
+
+To build the full PHP, Debian, variant and platform matrix, resolve releases once
+and pass the result to Bake:
 
 ```bash
 sources="$(mktemp)"
 docker buildx bake --print | bash docker/resolve-sources.sh > "$sources"
-
-# Build and load one development image for the local platform
-docker buildx bake -f docker-bake.hcl -f "$sources" runner-php-8-5-trixie-dev \
-  --set 'runner-php-8-5-trixie-dev.platform=' --set 'runner-php-8-5-trixie-dev.tags=frankenphp:dev' --load
-
-# Or build the whole default PHP, Debian, variant and platform matrix
 docker buildx bake -f docker-bake.hcl -f "$sources"
 rm "$sources"
 ```

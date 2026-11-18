@@ -12,19 +12,19 @@ fetch() {
     curl "${options[@]}" "$url"
 }
 
-targets="$(jq -ce '.target | with_entries(select(.key | startswith("runner-")))
-    | if length > 0 then . else error("No runner targets in Bake metadata") end')"
+targets="$(jq -ce '.target
+    | if type == "object" and length > 0 then . else error("No targets in Bake metadata") end')"
 minors="$(jq -er '
-    [.[].args.VERSION
-        | if type == "string" and test("^8\\.[45]-(bookworm|trixie)$")
-          then split("-")[0] else error("Unsupported PHP target: \(.)") end]
+    [.[].args.PHP_MINOR
+        | if type == "string" and test("^[0-9]+\\.[0-9]+$")
+          then . else error("Invalid PHP minor in Bake metadata: \(.)") end]
     | unique[]' <<< "$targets")"
 releases='{}'
 
 while IFS= read -r minor; do
     php="$(fetch "https://www.php.net/releases/?json&version=${minor}" | jq -ce --arg minor "$minor" '
         .version as $version
-        | if ($version | test("^8\\.[45]\\.[0-9]+$") and startswith($minor + "."))
+        | if ($version | type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$") and startswith($minor + "."))
           then . else error("Unexpected PHP release: \($version)") end
         | [.source[] | select(.filename == "php-\($version).tar.xz") | .sha256] as $checksums
         | if ($checksums | length) == 1 and ($checksums[0] | test("^[a-f0-9]{64}$"))
@@ -41,7 +41,7 @@ revision="$(fetch "https://api.github.com/repos/php/frankenphp/commits/${franken
 
 jq --argjson releases "$releases" --arg frankenphp "$frankenphp" --arg revision "$revision" '
     {target: with_entries(.value = {
-        args: ($releases[.value.args.VERSION | split("-")[0]] + {
+        args: ($releases[.value.args.PHP_MINOR] + {
             FRANKENPHP_VERSION: $frankenphp,
             FRANKENPHP_REVISION: $revision
         })
