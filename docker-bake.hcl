@@ -54,6 +54,7 @@ target "default" {
 
     args = {
         VERSION = "${php_version}-${os}"
+        DEBIAN_SUITE = os
         REFRESH = REFRESH
     }
 

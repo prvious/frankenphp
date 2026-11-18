@@ -43,7 +43,7 @@ The entries below illustrate the configured PHP minor tag format:
 | `latest` | Latest supported PHP production |
 | `latest-dev` | Latest supported PHP development |
 
-The workflow publishes the configured PHP 8.4 and 8.5 minor lines and follows their latest FrankenPHP patch releases. Unqualified tags use Debian Trixie. For Debian Bookworm, insert `-bookworm` before the optional `-dev` suffix: `php8.5-bookworm`, `php8.5-bookworm-dev`, `latest-bookworm`, or `latest-bookworm-dev`. All images support `linux/amd64` and `linux/arm64`.
+The workflow publishes the latest stable PHP patch in each configured minor line (8.4 and 8.5) and the latest stable FrankenPHP release. PHP and FrankenPHP are compiled from source; neither official image is used. Unqualified tags use Debian Trixie. For Debian Bookworm, insert `-bookworm` before the optional `-dev` suffix: `php8.5-bookworm`, `php8.5-bookworm-dev`, `latest-bookworm`, or `latest-bookworm-dev`. All images support `linux/amd64` and `linux/arm64`.
 
 ## Usage with Laravel
 
@@ -86,19 +86,33 @@ healthcheck-schedule  # Check scheduler
 
 ## Building Locally
 
+Docker Buildx and Python 3 are required. Resolve source releases once, then pass the
+result to Bake. The resolver reads PHP's release metadata and SHA-256 checksums
+from php.net and the stable FrankenPHP tag and commit from GitHub. Set
+`GH_TOKEN` if GitHub's anonymous API rate limit is a problem.
+
 ```bash
-# Build dev image
-docker build --build-arg VERSION=8.5-trixie --target dev -t frankenphp:dev .
+sources="$(mktemp)"
+docker buildx bake --print | python3 docker/resolve-sources.py > "$sources"
 
-# Build prod image
-docker build --build-arg VERSION=8.5-trixie --target prod -t frankenphp:prod .
+# Build and load one development image for the local platform
+docker buildx bake -f docker-bake.hcl -f "$sources" runner-php-8-5-trixie-dev \
+  --set 'runner-php-8-5-trixie-dev.platform=' --set 'runner-php-8-5-trixie-dev.tags=frankenphp:dev' --load
 
-# Build the default PHP 8.4/8.5 minor-version matrix
-docker buildx bake
-
-# Build an explicit minor-version set and label it with the current commit
-PHP_VERSION=8.4,8.5 SHA="$(git rev-parse HEAD)" LATEST=8.5 docker buildx bake
+# Or build the whole default PHP, Debian, variant and platform matrix
+docker buildx bake -f docker-bake.hcl -f "$sources"
+rm "$sources"
 ```
+
+To select minor lines, set `PHP_VERSION` (for example, `export PHP_VERSION=8.5`)
+before both commands. Keep the resolved JSON if you need to retry the same
+source revisions. The PHP build verifies the archive checksum and upstream
+release signature before compiling the CLI and ZTS shared library. The
+FrankenPHP build checks out the resolved commit and uses its Go module locks
+and the same PHP library. Debian, Go, Node and Composer remain image
+dependencies; the build still downloads extension and development tools.
+If a later stable FrankenPHP release requires a newer Go major/minor,
+update `GO_VERSION` at the top of the Dockerfile.
 
 ## Manually Rebuilding Published Images
 
@@ -114,10 +128,10 @@ Manual runs refresh floating dependencies, build and test the full PHP/OS/varian
 
 The daily build always rebuilds the development images. It rebuilds and republishes the production images only when something under them changed, so servers running them do not pull new layers for nothing:
 
-- a new `dunglas/frankenphp` image for that PHP version and Debian release,
-- a pending update for an installed Debian or PostgreSQL package (a refresh then upgrades every package, including the upstream image's),
+- a new PHP patch or FrankenPHP source release, without waiting for upstream Docker images,
+- a pending update for an installed Debian or PostgreSQL package (a refresh upgrades all installed system packages),
 - a new Node 26, pnpm 11 or svgo release,
-- and every Monday regardless, for new PHP extension and Composer releases.
+- and every Monday regardless, for updates such as Go, PHP extensions and Composer.
 
 `.github/scripts/plan-scheduled-build.sh` makes that decision and writes its reasons to the run's summary. If it cannot decide, every image is rebuilt.
 

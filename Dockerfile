@@ -1,5 +1,97 @@
-ARG VERSION
-FROM dunglas/frankenphp:php${VERSION} AS frankenphp-base
+# syntax=docker/dockerfile:1
+ARG DEBIAN_SUITE=trixie
+ARG GO_VERSION=1.27
+
+FROM golang:${GO_VERSION}-${DEBIAN_SUITE} AS go-toolchain
+
+# Common Debian base for the source build and the final runtime.
+FROM debian:${DEBIAN_SUITE}-slim AS php-build-base
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+ENV PHPIZE_DEPS="autoconf dpkg-dev file g++ gcc libc-dev make pkg-config re2c" \
+    PHP_INI_DIR=/usr/local/etc/php \
+    PHP_CFLAGS="-fstack-protector-strong -fpic -fpie -O2 -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64" \
+    PHP_LDFLAGS="-Wl,-O1 -pie"
+ENV PHP_CPPFLAGS="${PHP_CFLAGS}"
+
+# Retain the PHP extension toolchain for existing downstream Dockerfiles;
+# prevent distro PHP packages from accidentally introducing a second PHP ABI.
+RUN printf 'Package: php*\nPin: release *\nPin-Priority: -1\n' > /etc/apt/preferences.d/no-debian-php \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends $PHPIZE_DEPS ca-certificates curl xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+FROM php-build-base AS php-builder
+ARG DEBIAN_SUITE
+ARG VERSION=8.5-trixie
+ARG PHP_VERSION=""
+ARG PHP_SHA256=""
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gpg gpgv libargon2-dev libcurl4-openssl-dev libonig-dev \
+        libreadline-dev libsodium-dev libsqlite3-dev libssl-dev libxml2-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --chmod=755 docker/php-helpers/docker-php-* /usr/local/bin/
+COPY docker/php-helpers/LICENSE /usr/local/share/licenses/docker-php-helpers/LICENSE
+RUN --mount=type=bind,source=docker/build-php.sh,target=/build-php.sh bash /build-php.sh
+
+FROM php-builder AS frankenphp-builder
+ARG FRANKENPHP_VERSION=""
+ARG FRANKENPHP_REVISION=""
+COPY --from=go-toolchain /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:${PATH}" GOTOOLCHAIN=local
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends cmake git jq libbrotli-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN --mount=type=bind,source=docker/build-frankenphp.sh,target=/build-frankenphp.sh \
+    --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOPATH=/go bash /build-frankenphp.sh
+
+FROM php-build-base AS frankenphp-base
+ARG PHP_VERSION
+ARG PHP_SHA256
+ARG FRANKENPHP_VERSION
+ARG FRANKENPHP_REVISION
+ENV PHP_VERSION="${PHP_VERSION}" \
+    PHP_URL="https://www.php.net/distributions/php-${PHP_VERSION}.tar.xz" \
+    PHP_ASC_URL="https://www.php.net/distributions/php-${PHP_VERSION}.tar.xz.asc" \
+    PHP_SHA256="${PHP_SHA256}" \
+    FRANKENPHP_VERSION="${FRANKENPHP_VERSION}" \
+    GODEBUG=cgocheck=0 \
+    XDG_CONFIG_HOME=/config \
+    XDG_DATA_HOME=/data
+
+LABEL org.opencontainers.image.php.version="${PHP_VERSION}" \
+    org.opencontainers.image.frankenphp.version="${FRANKENPHP_VERSION}" \
+    org.opencontainers.image.frankenphp.revision="${FRANKENPHP_REVISION}"
+
+RUN --mount=type=bind,from=php-builder,source=/out/php-runtime-packages,target=/php-runtime-packages \
+    apt-get update \
+    && xargs -r apt-get install -y --no-install-recommends libbrotli1 libcap2-bin libstdc++6 mailcap < /php-runtime-packages \
+    && rm -rf /var/lib/apt/lists/* \
+    && install -d -m 1777 -o www-data -g www-data /var/www/html \
+    && mkdir -p /config/caddy /data/caddy
+
+COPY --link --from=php-builder /usr/local/ /usr/local/
+COPY --link --from=php-builder /usr/src/php.tar.xz /usr/src/php.tar.xz
+COPY --link --chmod=755 docker/docker-php-entrypoint /usr/local/bin/docker-php-entrypoint
+
+# Copy and set the capability in one layer so the binary is not duplicated.
+RUN --mount=type=bind,from=frankenphp-builder,source=/out/frankenphp,target=/frankenphp-build \
+    cp -a /frankenphp-build/. / \
+    && ldconfig \
+    && setcap cap_net_bind_service=+ep /usr/local/bin/frankenphp \
+    && php --version \
+    && frankenphp version
+
+WORKDIR /app
+EXPOSE 80 443 443/udp 2019
+HEALTHCHECK CMD curl -fsS http://localhost:2019/metrics || exit 1
+ENTRYPOINT ["docker-php-entrypoint"]
+CMD ["--config", "/etc/frankenphp/Caddyfile", "--adapter", "caddyfile"]
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # BUILDER STAGES: Follow supported major release channels
@@ -36,8 +128,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV pnpm_config_store_dir=/home/${USER}/.pnpm-store
 
 # Install shared runtime packages and image tools from the target Debian suite.
-# A refresh (REFRESH set) also upgrades what the upstream image installed:
-# installing the listed packages alone would leave its libraries as they were.
+# A refresh also upgrades all existing runtime packages from the configured repositories.
 RUN echo "${REFRESH}" > /dev/null \
     && apt-get update \
     && apt-get upgrade -y --no-install-recommends \
@@ -73,8 +164,12 @@ RUN echo "${REFRESH}" > /dev/null \
         /usr/share/man/* \
         /var/lib/apt/lists/*
 
-# PHP extensions
-RUN install-php-extensions \
+# Keep the existing extension installer, independently of any upstream PHP image.
+RUN curl --retry 3 -fsSL \
+        https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions \
+        -o /usr/local/bin/install-php-extensions \
+    && chmod 0755 /usr/local/bin/install-php-extensions \
+    && install-php-extensions \
         mysqli \
         pdo_mysql \
         pgsql \
@@ -104,9 +199,8 @@ COPY --link --from=node-builder --chown=0:0 --chmod=755 /usr/local/bin/node /usr
 COPY --link --from=node-builder --chown=0:0 /usr/local/lib/node_modules/pnpm /usr/local/lib/node_modules/pnpm
 COPY --link --from=node-builder --chown=0:0 /usr/local/lib/node_modules/svgo /usr/local/lib/node_modules/svgo
 
-# User creation and permissions. The upstream image already lets frankenphp bind
-# ports below 1024 (cap_net_bind_service); setting the capability again would
-# copy the whole binary (60 MB) into this layer.
+# User creation and permissions. frankenphp-base already grants the binary
+# cap_net_bind_service to serve port 80 as the runtime user.
 RUN ln -s ../lib/node_modules/pnpm/bin/pnpm.mjs /usr/local/bin/pnpm \
     && ln -s ../lib/node_modules/pnpm/bin/pnpx.mjs /usr/local/bin/pnpx \
     && ln -s ../lib/node_modules/svgo/bin/svgo.js /usr/local/bin/svgo \

@@ -5,7 +5,10 @@ declare(strict_types=1);
 const NODE_MAJOR_VERSION = 26;
 const PNPM_MAJOR_VERSION = 11;
 
-const PRODUCTION_EXTENSIONS = ['mysqli', 'pdo_mysql', 'pgsql', 'pdo_pgsql', 'bcmath', 'gd', 'imagick', 'imap', 'pcntl', 'zip', 'intl', 'exif', 'ftp', 'xml', 'pdo_sqlsrv', 'sqlsrv', 'sockets'];
+// These were inherited from the official PHP ZTS image before source builds.
+const BASELINE_EXTENSIONS = ['ctype', 'curl', 'dom', 'fileinfo', 'filter', 'iconv', 'json', 'mbstring', 'openssl', 'PDO', 'pdo_sqlite', 'Phar', 'posix', 'readline', 'session', 'SimpleXML', 'sodium', 'SPL', 'sqlite3', 'tokenizer', 'xmlreader', 'xmlwriter', 'zlib', 'Zend OPcache'];
+
+const PRODUCTION_EXTENSIONS = [...BASELINE_EXTENSIONS, 'mysqli', 'pdo_mysql', 'pgsql', 'pdo_pgsql', 'bcmath', 'gd', 'imagick', 'imap', 'pcntl', 'zip', 'intl', 'exif', 'ftp', 'xml', 'pdo_sqlsrv', 'sqlsrv', 'sockets'];
 
 const DEV_ONLY_EXTENSIONS = ['xdebug'];
 
@@ -14,7 +17,7 @@ const DEV_EXTENSIONS = [
     ...DEV_ONLY_EXTENSIONS,
 ];
 
-const PRODUCTION_BINARIES = ['php', 'composer', 'node', 'pnpm', 'psql', 'mysql', 'supervisord', 'jpegoptim', 'optipng', 'pngquant', 'gifsicle', 'ffmpeg', 'svgo', 'avifenc', 'zsh'];
+const PRODUCTION_BINARIES = ['php', 'frankenphp', 'composer', 'node', 'pnpm', 'psql', 'mysql', 'supervisord', 'jpegoptim', 'optipng', 'pngquant', 'gifsicle', 'ffmpeg', 'svgo', 'avifenc', 'zsh'];
 
 const DEV_ONLY_BINARIES = ['gh', 'eza', 'htop', 'nano', 'fzf', 'zoxide', 'starship', 'opencode'];
 
@@ -232,6 +235,96 @@ function binaries(Runner $runner): void
     }
 }
 
+/** Verify both SAPIs, not just the PHP CLI used to run this test. */
+function sourceRuntime(Runner $runner): void
+{
+    $runner->printHeader("🔨", "Checking Source-built Runtime");
+
+    $expectedPhp = getenv('EXPECTED_PHP_VERSION') ?: getenv('PHP_VERSION') ?: '';
+    $expectedFrankenphp = ltrim(getenv('EXPECTED_FRANKENPHP_VERSION') ?: getenv('FRANKENPHP_VERSION') ?: '', 'v');
+    $runner->check('PHP release metadata', preg_match('/^8\.[0-9]+\.[0-9]+$/D', $expectedPhp) === 1);
+    $runner->check('PHP CLI exact release', PHP_VERSION === $expectedPhp, "expected {$expectedPhp}, got " . PHP_VERSION);
+    $runner->check('PHP CLI thread safety', PHP_ZTS === 1);
+    $runner->check('FrankenPHP release metadata', preg_match('/^[0-9]+\.[0-9]+\.[0-9]+$/D', $expectedFrankenphp) === 1);
+
+    $version = trim(@shell_exec('frankenphp version 2>&1') ?? '');
+    $runner->check(
+        'FrankenPHP exact release',
+        $expectedFrankenphp !== '' && preg_match('/\bFrankenPHP v?' . preg_quote($expectedFrankenphp, '/') . '(?:\s|$)/', $version) === 1,
+        "expected {$expectedFrankenphp}, got {$version}"
+    );
+
+    // Reserve a local ephemeral port instead of assuming a port is unused.
+    $socket = @stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
+    $runner->check('HTTP smoke-test port', is_resource($socket), $errorMessage);
+    if (!is_resource($socket)) {
+        return;
+    }
+    $address = stream_socket_get_name($socket, false);
+    fclose($socket);
+
+    $directory = sys_get_temp_dir() . '/frankenphp-smoke-' . bin2hex(random_bytes(8));
+    mkdir($directory, 0700);
+    $process = null;
+    try {
+        file_put_contents($directory . '/index.php', '<?php header("Content-Type: application/json"); echo json_encode(["version" => PHP_VERSION, "zts" => PHP_ZTS, "sapi" => PHP_SAPI, "extensions" => array_merge(get_loaded_extensions(), get_loaded_extensions(true))]);');
+        file_put_contents($directory . '/Caddyfile', "{\n    admin off\n    auto_https off\n    frankenphp {\n        num_threads 2\n    }\n}\nhttp://{$address} {\n    root * {$directory}\n    php_server\n}\n");
+        $process = proc_open(
+            ['frankenphp', 'run', '--config', $directory . '/Caddyfile', '--adapter', 'caddyfile'],
+            [0 => ['file', '/dev/null', 'r'], 1 => ['file', $directory . '/server.log', 'a'], 2 => ['file', $directory . '/server.log', 'a']],
+            $pipes
+        );
+        $runner->check('FrankenPHP starts as runtime user', is_resource($process));
+        if (!is_resource($process)) {
+            return;
+        }
+
+        $response = false;
+        $context = stream_context_create(['http' => ['timeout' => 1]]);
+        $deadline = microtime(true) + 20;
+        do {
+            $response = @file_get_contents("http://{$address}/index.php", false, $context);
+            if ($response !== false || !proc_get_status($process)['running']) {
+                break;
+            }
+            usleep(100000);
+        } while (microtime(true) < $deadline);
+
+        $payload = is_string($response) ? json_decode($response, true) : null;
+        $runner->check('FrankenPHP serves PHP over HTTP', is_array($payload), (string) file_get_contents($directory . '/server.log'));
+        if (!is_array($payload)) {
+            return;
+        }
+        $runner->check('embedded PHP exact release', ($payload['version'] ?? null) === $expectedPhp);
+        $runner->check('embedded PHP thread safety', ($payload['zts'] ?? null) === 1);
+        $runner->check('embedded PHP SAPI', ($payload['sapi'] ?? null) === 'frankenphp');
+        $loaded = array_map('strtolower', $payload['extensions'] ?? []);
+        $required = $runner->environment === 'dev' ? DEV_EXTENSIONS : PRODUCTION_EXTENSIONS;
+        foreach ($required as $extension) {
+            $runner->check("embedded extension:{$extension}", in_array(strtolower($extension), $loaded, true));
+        }
+        if ($runner->environment === 'production') {
+            $runner->check('embedded PHP has no Xdebug', !in_array('xdebug', $loaded, true));
+        }
+    } finally {
+        if (is_resource($process)) {
+            proc_terminate($process);
+            $deadline = microtime(true) + 3;
+            while (proc_get_status($process)['running'] && microtime(true) < $deadline) {
+                usleep(100000);
+            }
+            if (proc_get_status($process)['running']) {
+                proc_terminate($process, 9);
+            }
+            proc_close($process);
+        }
+        foreach (glob($directory . '/*') as $file) {
+            unlink($file);
+        }
+        rmdir($directory);
+    }
+}
+
 function sanity(Runner $runner): void
 {
     $runner->printHeader("✅", "Running Sanity Checks");
@@ -332,6 +425,7 @@ function go(): never
     extensions($runner);
     binaries($runner);
     sanity($runner);
+    sourceRuntime($runner);
 
     if ($environment === 'production') {
         productionSettings($runner);

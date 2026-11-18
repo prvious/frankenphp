@@ -2,14 +2,14 @@
 
 ## Project Structure & Module Organization
 
-This repository builds the `ghcr.io/prvious/frankenphp` development and production images. `Dockerfile` defines the binary/tool builders and the shared `base`, `dev`, and `prod` stages. `docker-bake.hcl` expands PHP versions and targets across `linux/amd64` and `linux/arm64`. Container behavior is configured by `.env`, `.zshrc`, and `.zshrc.prod`. Executable Laravel health checks live under `usr/local/bin/`. Image validation is centralized in `test.php`, while `.github/workflows/pipeline.yml` builds, tests, and publishes the matrix.
+This repository builds the `ghcr.io/prvious/frankenphp` development and production images. `Dockerfile` defines the PHP and FrankenPHP source builds, binary/tool builders, and the shared `base`, `dev`, and `prod` stages. Source build scripts and release resolution live under `docker/`. `docker-bake.hcl` expands PHP versions and targets across `linux/amd64` and `linux/arm64`. Container behavior is configured by `.env`, `.zshrc`, and `.zshrc.prod`. Executable Laravel health checks live under `usr/local/bin/`. Image validation is centralized in `test.php`, while `.github/workflows/pipeline.yml` builds, tests, and publishes the matrix.
 
 ## Build, Test, and Development Commands
 
-- `docker build --build-arg VERSION=8.5-trixie --target dev -t frankenphp:dev .` builds the local development image.
-- `docker build --build-arg VERSION=8.5-trixie --target prod -t frankenphp:prod .` builds the production image.
-- `docker buildx bake --print` inspects the default PHP 8.4/8.5 minor-version matrix; override `PHP_VERSION`, `LATEST`, `SHA`, and `REFRESH` when testing matrix or dependency-refresh changes.
-- `docker buildx bake` builds all configured variants and architectures.
+- `docker buildx bake --print` inspects the default PHP 8.4/8.5 minor-version matrix. Override `PHP_VERSION`, `LATEST`, `SHA`, and `REFRESH` when testing matrix or dependency-refresh changes.
+- `docker buildx bake --print | python3 docker/resolve-sources.py > /tmp/frankenphp-sources.json` resolves the stable source versions for the matrix.
+- `docker buildx bake -f docker-bake.hcl -f /tmp/frankenphp-sources.json` builds all configured variants and architectures. See README for loading one target locally.
+- `python3 .github/scripts/test-source-build.py` tests source resolution and scheduled rebuild planning without a Docker daemon.
 - `docker run --rm -v "$PWD/test.php:/app/test.php" frankenphp:dev php /app/test.php dev` validates extensions, binaries, and pnpm configuration. Substitute the production image and `production` for that target.
 
 ## Coding Style & Naming Conventions

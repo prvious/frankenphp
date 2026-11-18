@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+# Keep bare Caddy flags compatible with the upstream FrankenPHP image.
+if [ "${1#-}" != "$1" ]; then
+    set -- frankenphp run "$@"
+fi
+
+exec "$@"
