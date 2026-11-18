@@ -86,14 +86,14 @@ healthcheck-schedule  # Check scheduler
 
 ## Building Locally
 
-Docker Buildx and Python 3 are required. Resolve source releases once, then pass the
+Docker Buildx, Bash, curl and jq are required. Resolve source releases once, then pass the
 result to Bake. The resolver reads PHP's release metadata and SHA-256 checksums
 from php.net and the stable FrankenPHP tag and commit from GitHub. Set
 `GH_TOKEN` if GitHub's anonymous API rate limit is a problem.
 
 ```bash
 sources="$(mktemp)"
-docker buildx bake --print | python3 docker/resolve-sources.py > "$sources"
+docker buildx bake --print | bash docker/resolve-sources.sh > "$sources"
 
 # Build and load one development image for the local platform
 docker buildx bake -f docker-bake.hcl -f "$sources" runner-php-8-5-trixie-dev \

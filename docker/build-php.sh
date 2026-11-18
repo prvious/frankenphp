@@ -120,12 +120,14 @@ if grep -q 'not found' /tmp/php-ldd; then
     cat /tmp/php-ldd >&2
     exit 1
 fi
+# Package-owner records begin with a package token ending in a colon;
+# Trixie usrmerge also emits human-readable diversion records that do not.
 awk '/=>/ && $3 ~ /^\// && $3 !~ /^\/usr\/local\// {
     sub(/^\/(usr\/)?/, "", $3); print "*" $3
 }' /tmp/php-ldd \
     | sort -u \
     | xargs -r dpkg-query --search \
-    | awk -F': ' '/: \// {print $1}' \
+    | awk 'sub(/:$/, "", $1) { print $1 }' \
     | sort -u > /out/php-runtime-packages
 test -s /out/php-runtime-packages
 rm /tmp/php-ldd

@@ -41,7 +41,7 @@ jobs:
             - uses: actions/checkout@v4
 
             - name: Test source resolution and rebuild planning
-              run: python3 .github/scripts/test-source-build.py
+              run: bash .github/scripts/test-source-build.sh
 
             - name: Resolve latest development tool releases
               id: releases
@@ -65,7 +65,7 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: |
                   set -euo pipefail
-                  docker buildx bake --print | python3 docker/resolve-sources.py > "${RUNNER_TEMP}/sources.json"
+                  docker buildx bake --print | bash docker/resolve-sources.sh > "${RUNNER_TEMP}/sources.json"
 
             - name: Upload resolved source versions
               uses: actions/upload-artifact@v4
