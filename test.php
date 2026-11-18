@@ -244,7 +244,7 @@ function sourceRuntime(Runner $runner): void
     $expectedFrankenphp = ltrim(getenv('EXPECTED_FRANKENPHP_VERSION') ?: getenv('FRANKENPHP_VERSION') ?: '', 'v');
     $runner->check('PHP release metadata', preg_match('/^8\.[0-9]+\.[0-9]+$/D', $expectedPhp) === 1);
     $runner->check('PHP CLI exact release', PHP_VERSION === $expectedPhp, "expected {$expectedPhp}, got " . PHP_VERSION);
-    $runner->check('PHP CLI thread safety', PHP_ZTS === 1);
+    $runner->check('PHP CLI thread safety', PHP_ZTS === true);
     $runner->check('FrankenPHP release metadata', preg_match('/^[0-9]+\.[0-9]+\.[0-9]+$/D', $expectedFrankenphp) === 1);
 
     $version = trim(@shell_exec('frankenphp version 2>&1') ?? '');
@@ -296,7 +296,7 @@ function sourceRuntime(Runner $runner): void
             return;
         }
         $runner->check('embedded PHP exact release', ($payload['version'] ?? null) === $expectedPhp);
-        $runner->check('embedded PHP thread safety', ($payload['zts'] ?? null) === 1);
+        $runner->check('embedded PHP thread safety', ($payload['zts'] ?? null) === true);
         $runner->check('embedded PHP SAPI', ($payload['sapi'] ?? null) === 'frankenphp');
         $loaded = array_map('strtolower', $payload['extensions'] ?? []);
         $required = $runner->environment === 'dev' ? DEV_EXTENSIONS : PRODUCTION_EXTENSIONS;
