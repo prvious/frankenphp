@@ -2,11 +2,11 @@
 #
 # Decides which variants a scheduled build publishes.
 #
-# Rebuilding a production variant gives every layer above the upstream image a
-# new digest, and every server running it then pulls about 300 MB again. So the
+# Refreshing a production variant can give large package layers new digests,
+# and every server running it then downloads them again. So the
 # production variants are rebuilt only when something under them changed:
 #
-#   - the upstream dunglas/frankenphp image a variant is built on,
+#   - the PHP or FrankenPHP source release used by a variant,
 #   - a Debian or PostgreSQL package installed in a published image,
 #   - Node (its major line), pnpm (its major line) or svgo,
 #
@@ -28,49 +28,52 @@ reasons=()
 all_variants="$(jq -c '[.target | keys[] | select(startswith("runner-")) | sub("^runner-"; "")] | unique' "$metadata")"
 dev_variants="$(jq -c 'map(select(endswith("-dev")))' <<< "${all_variants}")"
 
+# Reject unresolved metadata rather than accidentally shifting empty TSV fields.
+jq -e 'all(.target[] | select(.target == "prod");
+    [.args.PHP_VERSION, .args.FRANKENPHP_VERSION, .args.FRANKENPHP_REVISION]
+    | all(.[]; type == "string" and length > 0))' "$metadata" >/dev/null
+
 if [[ "$(date -u +%u)" == 1 ]]; then
     reasons+=("weekly refresh (Monday)")
 fi
 
-# The layer digests of one platform of an image, one per line.
-layers() {
+# Read one platform's image configuration, without running foreign-architecture
+# containers. Resolve the digest first so labels cannot come from another arch.
+source_versions() {
     local ref="$1" platform="$2" index digest
-
     index="$(docker buildx imagetools inspect --raw "${ref}")" || return 1
-    digest="$(jq -r --arg os "${platform%/*}" --arg arch "${platform#*/}" \
-        'first(.manifests[] | select(.platform.os == $os and .platform.architecture == $arch) | .digest)' <<< "${index}")"
-    docker buildx imagetools inspect --raw "${ref%:*}@${digest}" | jq -r '.layers[].digest'
+    digest="$(jq -er --arg os "${platform%/*}" --arg arch "${platform#*/}" \
+        'first(.manifests[] | select(.platform.os == $os and .platform.architecture == $arch) | .digest)' <<< "${index}")" || return 1
+    docker buildx imagetools inspect --format '{{json .Image}}' "${ref%:*}@${digest}" \
+        | jq -er '[.config.Labels["org.opencontainers.image.php.version"],
+                    .config.Labels["org.opencontainers.image.frankenphp.version"],
+                    .config.Labels["org.opencontainers.image.frankenphp.revision"]]
+                   | if all(.[]; type == "string" and length > 0) then join(" ") else error("missing source labels") end'
 }
 
-# 1. The upstream image under each production variant, on each platform: our
-#    image's layers start with the upstream image's as long as it is unchanged.
-while IFS=$'\t' read -r version tag platforms; do
-    upstream="dunglas/frankenphp:php${version}"
-
+# 1. Compare source versions resolved in prepare, not upstream image tags. A
+# missing/unreadable label (including pre-migration images) triggers a rebuild.
+while IFS=$'\t' read -r php frankenphp revision tag platforms; do
+    [[ -n "${php}" && -n "${frankenphp}" && -n "${revision}" ]] || exit 1
     for platform in ${platforms//,/ }; do
-        if ! ours="$(layers "${tag}" "${platform}" 2>/dev/null)"; then
-            reasons+=("${tag} (${platform}) is not published yet")
-            continue
-        fi
-
-        theirs="$(layers "${upstream}" "${platform}")"
-
-        if [[ "$(head -n "$(wc -l <<< "${theirs}")" <<< "${ours}")" != "${theirs}" ]]; then
-            reasons+=("${upstream} (${platform}) has a new image")
+        if ! ours="$(source_versions "${tag}" "${platform}" 2>/dev/null)"; then
+            reasons+=("${tag} (${platform}) has no readable source versions")
+        elif [[ "${ours}" != "${php} ${frankenphp} ${revision}" ]]; then
+            reasons+=("${tag} (${platform}) needs PHP ${php}, FrankenPHP ${frankenphp} (${revision})")
         fi
     done
-done < <(jq -r '.target[] | select(.target == "prod") | [.args.VERSION, .tags[0], (.platforms | join(","))] | @tsv' "$metadata")
+done < <(jq -r '.target[] | select(.target == "prod") | [.args.PHP_VERSION, .args.FRANKENPHP_VERSION, .args.FRANKENPHP_REVISION, .tags[0], (.platforms | join(","))] | @tsv' "$metadata")
 
 # 2. Package updates, checked in one published production image per Debian
 #    release: the package set is the same across PHP versions.
 while IFS=$'\t' read -r os tag; do
     count="$(docker run --rm --quiet --pull always --user root --entrypoint bash "${tag}" -c \
-        'apt-get update -qq >/dev/null 2>&1 && apt list --upgradable 2>/dev/null | grep -c "\[upgradable" || true')"
+        'set -eo pipefail; apt-get update -qq >/dev/null; apt list --upgradable 2>/dev/null | awk '\''/\[upgradable/ {count++} END {print count+0}'\''')"
 
     if [[ "${count}" -gt 0 ]]; then
         reasons+=("${count} package update(s) for ${os}")
     fi
-done < <(jq -r '[.target[] | select(.target == "prod") | {os: (.args.VERSION | split("-")[1]), tag: .tags[0]}] | unique_by(.os)[] | [.os, .tag] | @tsv' "$metadata")
+done < <(jq -r '[.target[] | select(.target == "prod") | {os: .args.DEBIAN_SUITE, tag: .tags[0]}] | unique_by(.os)[] | [.os, .tag] | @tsv' "$metadata")
 
 # 3. Node, pnpm and svgo, against the latest releases of the lines the
 #    Dockerfile installs.

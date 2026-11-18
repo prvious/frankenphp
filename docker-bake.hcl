@@ -53,7 +53,8 @@ target "default" {
     ))
 
     args = {
-        VERSION = "${php_version}-${os}"
+        PHP_MINOR = php_version
+        DEBIAN_SUITE = os
         REFRESH = REFRESH
     }
 
@@ -63,4 +64,11 @@ target "default" {
         "org.opencontainers.image.version" = variant == "dev" ? "${php_version}-${os}-dev" : "${php_version}-${os}"
         "org.opencontainers.image.revision" = SHA
     }
+}
+
+target "local-dev" {
+    inherits = ["runner-php-${replace(LATEST, ".", "-")}-trixie-dev"]
+    platforms = []
+    tags = ["frankenphp:dev"]
+    output = ["type=docker"]
 }

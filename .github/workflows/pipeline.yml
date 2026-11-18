@@ -40,6 +40,9 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
+            - name: Test source resolution and rebuild planning
+              run: bash .github/scripts/test-source-build.sh
+
             - name: Resolve latest development tool releases
               id: releases
               env:
@@ -57,12 +60,26 @@ jobs:
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
 
+            - name: Resolve PHP and FrankenPHP source releases
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+                  docker buildx bake --print | bash docker/resolve-sources.sh > "${RUNNER_TEMP}/sources.json"
+
+            - name: Upload resolved source versions
+              uses: actions/upload-artifact@v4
+              with:
+                  name: source-versions
+                  path: ${{ runner.temp }}/sources.json
+                  retention-days: 1
+
             - name: Create variants matrix
               id: matrix
               shell: bash
               run: |
                   set -e
-                  METADATA="$(docker buildx bake --print | jq -c)"
+                  METADATA="$(docker buildx bake -f docker-bake.hcl -f "${RUNNER_TEMP}/sources.json" --print | jq -c)"
                   {
                     echo metadata="${METADATA}"
                     echo variants="$(jq -c '[.target | keys[] | select(startswith("runner-")) | sub("^runner-"; "")] | unique' <<< "${METADATA}")"
@@ -128,6 +145,12 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Download resolved source versions
+              uses: actions/download-artifact@v4
+              with:
+                  name: source-versions
+                  path: ${{ runner.temp }}
+
             - name: Create tarball directory
               run: mkdir -p /tmp/images
 
@@ -137,6 +160,10 @@ jobs:
               continue-on-error: true
               uses: docker/bake-action@v6
               with: &bake
+                  source: .
+                  files: |
+                      docker-bake.hcl
+                      ${{ runner.temp }}/sources.json
                   push: ${{ github.event_name != 'pull_request' }}
                   targets: runner-${{ matrix.variant }}
                   set: |
@@ -224,6 +251,9 @@ jobs:
               run: docker load --input "/tmp/images/runner-${{ matrix.variant }}-${{ steps.prepare.outputs.sanitized_platform }}.tar"
 
             - name: Test image environment
+              env:
+                  METADATA: ${{ needs.prepare.outputs.metadata }}
+                  TARGET: runner-${{ matrix.variant }}
               run: |
                   # Get the built image name
                   case "${{ matrix.variant }}" in
@@ -232,7 +262,11 @@ jobs:
                   esac
 
                   echo "🧪 Testing ${ENV_TYPE} environment"
-                  docker run --rm -v "$PWD/test.php:/test.php:ro" -e FORCE_COLOR=1 frankenphp:test php /test.php "${ENV_TYPE}"
+                  php_version="$(jq -er --arg target "${TARGET}" '.target[$target].args.PHP_VERSION' <<< "${METADATA}")"
+                  frankenphp_version="$(jq -er --arg target "${TARGET}" '.target[$target].args.FRANKENPHP_VERSION' <<< "${METADATA}")"
+                  docker run --rm -v "$PWD/test.php:/test.php:ro" -e FORCE_COLOR=1 \
+                    -e EXPECTED_PHP_VERSION="${php_version}" -e EXPECTED_FRANKENPHP_VERSION="${frankenphp_version}" \
+                    frankenphp:test php /test.php "${ENV_TYPE}"
 
     push:
         runs-on: ubuntu-24.04

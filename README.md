@@ -43,7 +43,7 @@ The entries below illustrate the configured PHP minor tag format:
 | `latest` | Latest supported PHP production |
 | `latest-dev` | Latest supported PHP development |
 
-The workflow publishes the configured PHP 8.4 and 8.5 minor lines and follows their latest FrankenPHP patch releases. Unqualified tags use Debian Trixie. For Debian Bookworm, insert `-bookworm` before the optional `-dev` suffix: `php8.5-bookworm`, `php8.5-bookworm-dev`, `latest-bookworm`, or `latest-bookworm-dev`. All images support `linux/amd64` and `linux/arm64`.
+The workflow publishes the latest stable PHP patch in each configured minor line (8.4 and 8.5) and the latest stable FrankenPHP release. PHP and FrankenPHP are compiled from source; neither official image is used. Unqualified tags use Debian Trixie. For Debian Bookworm, insert `-bookworm` before the optional `-dev` suffix: `php8.5-bookworm`, `php8.5-bookworm-dev`, `latest-bookworm`, or `latest-bookworm-dev`. All images support `linux/amd64` and `linux/arm64`.
 
 ## Usage with Laravel
 
@@ -86,19 +86,34 @@ healthcheck-schedule  # Check scheduler
 
 ## Building Locally
 
+Docker Buildx, Bash, curl and jq are required. Build and load `frankenphp:dev` for your local platform:
+
 ```bash
-# Build dev image
-docker build --build-arg VERSION=8.5-trixie --target dev -t frankenphp:dev .
-
-# Build prod image
-docker build --build-arg VERSION=8.5-trixie --target prod -t frankenphp:prod .
-
-# Build the default PHP 8.4/8.5 minor-version matrix
-docker buildx bake
-
-# Build an explicit minor-version set and label it with the current commit
-PHP_VERSION=8.4,8.5 SHA="$(git rev-parse HEAD)" LATEST=8.5 docker buildx bake
+bash docker/build-local.sh
 ```
+
+The local build uses Trixie and the PHP minor behind the `latest-dev` tag.
+Set `LATEST=8.4` to select PHP 8.4 and `GH_TOKEN` if GitHub's anonymous API rate limit is a problem.
+
+To build the full PHP, Debian, variant and platform matrix, resolve releases once
+and pass the result to Bake:
+
+```bash
+sources="$(mktemp)"
+docker buildx bake --print | bash docker/resolve-sources.sh > "$sources"
+docker buildx bake -f docker-bake.hcl -f "$sources"
+rm "$sources"
+```
+
+To select minor lines, set `PHP_VERSION` (for example, `export PHP_VERSION=8.5`)
+before both commands. Keep the resolved JSON if you need to retry the same
+source revisions. The PHP build verifies the archive checksum and upstream
+release signature before compiling the CLI and ZTS shared library. The
+FrankenPHP build checks out the resolved commit and uses its Go module locks
+and the same PHP library. Debian, Go, Node and Composer remain image
+dependencies; the build still downloads extension and development tools.
+If a later stable FrankenPHP release requires a newer Go major/minor,
+update `GO_VERSION` at the top of the Dockerfile.
 
 ## Manually Rebuilding Published Images
 
@@ -114,10 +129,10 @@ Manual runs refresh floating dependencies, build and test the full PHP/OS/varian
 
 The daily build always rebuilds the development images. It rebuilds and republishes the production images only when something under them changed, so servers running them do not pull new layers for nothing:
 
-- a new `dunglas/frankenphp` image for that PHP version and Debian release,
-- a pending update for an installed Debian or PostgreSQL package (a refresh then upgrades every package, including the upstream image's),
+- a new PHP patch or FrankenPHP source release, without waiting for upstream Docker images,
+- a pending update for an installed Debian or PostgreSQL package (a refresh upgrades all installed system packages),
 - a new Node 26, pnpm 11 or svgo release,
-- and every Monday regardless, for new PHP extension and Composer releases.
+- and every Monday regardless, for updates such as Go, PHP extensions and Composer.
 
 `.github/scripts/plan-scheduled-build.sh` makes that decision and writes its reasons to the run's summary. If it cannot decide, every image is rebuilt.
 
