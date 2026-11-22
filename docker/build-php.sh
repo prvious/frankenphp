@@ -10,6 +10,9 @@ case "$PHP_MINOR" in
     8.5)
         keys=(1198C0117593497A5EC5C199286AF1F9897469DC 49D9AF6BC72A80D6691719C8AA23F5BE9C7097D4 D95C03BC702BE9515344AE3374E44BC9067701A5)
         ;;
+    8.6)
+        keys=(D95C03BC702BE9515344AE3374E44BC9067701A5 016895DE9A475111D537A6E69134FF30BC5A99B5 5CFF17B64DC1C244F5D0EAC3E43535E2EB19010E)
+        ;;
     *)
         echo "No release signing keys configured for PHP_MINOR=${PHP_MINOR}." >&2
         exit 1
@@ -53,9 +56,13 @@ multiarch="$(dpkg-architecture --query DEB_BUILD_MULTIARCH)"
 # Match the PHP ZTS image's core extension set, ini locations and toolchain
 # interface so existing PHP configuration and downstream extension builds work.
 # OPcache is shared in PHP 8.4 and built in from PHP 8.5.
-opcache=()
+options=()
 if [[ "$PHP_MINOR" == 8.4 ]]; then
-    opcache=(--enable-opcache=shared)
+    options+=(--enable-opcache=shared)
+fi
+# PHP 8.6 uses local-exec TLS for executables and PIC for shared libraries.
+if [[ "$PHP_MINOR" == 8.4 || "$PHP_MINOR" == 8.5 ]]; then
+    options+=(--with-pic)
 fi
 
 ./configure \
@@ -67,7 +74,6 @@ fi
     --enable-zts \
     --enable-embed=shared \
     --disable-zend-signals \
-    --with-pic \
     --with-mhash \
     --enable-mbstring \
     --enable-mysqlnd \
@@ -84,7 +90,7 @@ fi
     --enable-phpdbg-readline \
     --with-pear \
     --with-libdir="lib/${multiarch}" \
-    "${opcache[@]}"
+    "${options[@]}"
 
 make -j "$(nproc)"
 make install
