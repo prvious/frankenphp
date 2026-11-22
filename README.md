@@ -6,10 +6,10 @@ Custom [FrankenPHP](https://frankenphp.dev) Docker images with batteries include
 
 ```bash
 # Development (includes xdebug, dev tools)
-docker pull ghcr.io/prvious/frankenphp:php8.5-dev
+docker pull ghcr.io/prvious/frankenphp:php8.6-dev
 
 # Production
-docker pull ghcr.io/prvious/frankenphp:php8.5
+docker pull ghcr.io/prvious/frankenphp:php8.6
 ```
 
 ## What's Included
@@ -26,7 +26,7 @@ docker pull ghcr.io/prvious/frankenphp:php8.5
 
 ### Dev Only
 
-- **PHP**: Xdebug
+- **PHP**: Xdebug (3.6 prerelease on PHP 8.6)
 - **Tools**: GitHub CLI, OpenCode, htop, nano, fzf, zoxide, eza
 - **Shell**: Oh My Zsh, Starship prompt, syntax highlighting, autosuggestions, fzf-tab
 
@@ -36,6 +36,8 @@ The entries below illustrate the configured PHP minor tag format:
 
 | Tag | Description |
 |-----|-------------|
+| `php8.6` | PHP 8.6 production |
+| `php8.6-dev` | PHP 8.6 development |
 | `php8.5` | PHP 8.5 production |
 | `php8.5-dev` | PHP 8.5 development |
 | `php8.4` | PHP 8.4 production |
@@ -43,7 +45,7 @@ The entries below illustrate the configured PHP minor tag format:
 | `latest` | Latest supported PHP production |
 | `latest-dev` | Latest supported PHP development |
 
-The workflow publishes the latest stable PHP patch in each configured minor line (8.4 and 8.5) and the latest stable FrankenPHP release. PHP and FrankenPHP are compiled from source; neither official image is used. Unqualified tags use Debian Trixie. For Debian Bookworm, insert `-bookworm` before the optional `-dev` suffix: `php8.5-bookworm`, `php8.5-bookworm-dev`, `latest-bookworm`, or `latest-bookworm-dev`. All images support `linux/amd64` and `linux/arm64`.
+The workflow compiles the latest stable PHP patch in each configured minor line (8.4, 8.5, and 8.6) and the latest stable FrankenPHP release. The `latest` and `php8` aliases use PHP 8.6. Unqualified tags use Debian Trixie. For Debian Bookworm, use tags such as `php8.6-bookworm` or `php8.6-bookworm-dev`. All images support `linux/amd64` and `linux/arm64`.
 
 ## Usage with Laravel
 
@@ -51,7 +53,7 @@ The workflow publishes the latest stable PHP patch in each configured minor line
 # docker-compose.yml
 services:
   app:
-    image: ghcr.io/prvious/frankenphp:php8.5-dev
+    image: ghcr.io/prvious/frankenphp:php8.6-dev
     ports:
       - "80:80"
       - "443:443"

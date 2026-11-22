@@ -168,6 +168,13 @@ RUN curl --retry 3 -fsSL \
         https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions \
         -o /usr/local/bin/install-php-extensions \
     && chmod 0755 /usr/local/bin/install-php-extensions \
+    && external_extensions=(imagick imap) \
+    && if [[ "${PHP_VERSION}" == 8.6.* ]]; then \
+        external_extensions=( \
+            Imagick/imagick@b580a705e2c879924bfaee2e1ed3a93c9cb3fcfb \
+            php/pecl-mail-imap@c441c79add125f5a01f88332805221edeebe47b0 \
+        ); \
+    fi \
     && install-php-extensions \
         mysqli \
         pdo_mysql \
@@ -175,17 +182,32 @@ RUN curl --retry 3 -fsSL \
         pdo_pgsql \
         bcmath \
         gd \
-        imagick \
-        imap \
+        "${external_extensions[@]}" \
         pcntl \
         zip \
         intl \
         exif \
         ftp \
         xml \
-        pdo_sqlsrv \
-        sqlsrv \
         sockets
+
+# PHP 8.6-compatible SQL Server drivers are published through PIE.
+RUN --mount=type=bind,from=ghcr.io/php/pie:1-bin,source=/pie,target=/usr/local/bin/pie \
+    if [[ "${PHP_VERSION}" == 8.6.* ]]; then \
+        . /etc/os-release \
+        && curl --retry 3 -fsSL "https://packages.microsoft.com/config/debian/${VERSION_ID}/packages-microsoft-prod.deb" -o /tmp/packages-microsoft-prod.deb \
+        && dpkg -i /tmp/packages-microsoft-prod.deb \
+        && apt-get update \
+        && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc-dev \
+        && export XDG_CONFIG_HOME=/tmp/pie-config XDG_CACHE_HOME=/tmp/pie-cache \
+        && pie install --no-interaction microsoft/sqlsrv \
+        && pie install --no-interaction microsoft/pdo_sqlsrv \
+        && apt-get purge -y --auto-remove unixodbc-dev \
+        && apt-get clean \
+        && rm -rf /tmp/pie-config /tmp/pie-cache /tmp/packages-microsoft-prod.deb /var/lib/apt/lists/*; \
+    else \
+        install-php-extensions pdo_sqlsrv sqlsrv; \
+    fi
 
 # Copy runtime configuration and major-channel artifacts after the expensive package layers.
 # --link makes each layer independent of the ones below it, so a refresh of the
@@ -281,8 +303,12 @@ RUN echo "${REFRESH}" > /dev/null \
     && apt-get clean \
     && rm -rf /tmp/fzf /var/lib/apt/lists/*
 
-# Development PHP extensions
-RUN install-php-extensions xdebug \
+# PHP 8.6 needs the Xdebug 3.6 prerelease until a compatible stable release is available.
+RUN if [[ "${PHP_VERSION}" == 8.6.* ]]; then \
+        install-php-extensions xdebug/xdebug@3.6.0alpha1; \
+    else \
+        install-php-extensions xdebug; \
+    fi \
     && cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 
 # Copy development shell configuration

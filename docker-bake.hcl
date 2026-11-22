@@ -3,8 +3,8 @@ variable "IMAGE_NAME" {
 }
 
 variable "PHP_VERSION" {
-    description = "Comma-separated list of PHP minor versions to build, e.g. '8.4,8.5'."
-    default = "8.4,8.5"
+    description = "Comma-separated list of PHP minor versions to build, e.g. '8.4,8.5,8.6'."
+    default = "8.4,8.5,8.6"
 }
 
 variable "SHA" {
@@ -14,7 +14,7 @@ variable "SHA" {
 
 variable "LATEST" {
     description = "The PHP minor version to publish under the latest aliases."
-    default = "8.5"
+    default = "8.6"
 }
 
 variable "REFRESH" {
