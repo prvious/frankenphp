@@ -199,11 +199,12 @@ RUN --mount=type=bind,from=ghcr.io/php/pie:1-bin,source=/pie,target=/usr/local/b
         && dpkg -i /tmp/packages-microsoft-prod.deb \
         && apt-get update \
         && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc-dev \
+        && export XDG_CONFIG_HOME=/tmp/pie-config XDG_CACHE_HOME=/tmp/pie-cache \
         && pie install --no-interaction microsoft/sqlsrv \
         && pie install --no-interaction microsoft/pdo_sqlsrv \
         && apt-get purge -y --auto-remove unixodbc-dev \
         && apt-get clean \
-        && rm -rf /tmp/packages-microsoft-prod.deb /var/lib/apt/lists/*; \
+        && rm -rf /tmp/pie-config /tmp/pie-cache /tmp/packages-microsoft-prod.deb /var/lib/apt/lists/*; \
     else \
         install-php-extensions pdo_sqlsrv sqlsrv; \
     fi
